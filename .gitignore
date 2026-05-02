@@ -1,0 +1,25 @@
+# dependencies
+node_modules/
+
+# build outputs
+dist/
+build/
+
+# env
+.env
+.env.*
+
+# logs
+logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# turbo / monorepo
+.turbo/

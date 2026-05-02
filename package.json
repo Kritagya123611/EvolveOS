@@ -1,0 +1,8 @@
+{
+  "name": "vivarium-master",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ]
+}
