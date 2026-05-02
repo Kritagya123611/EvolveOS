@@ -18,7 +18,7 @@ const taskQueue=new Queue('taskQueue',{
 })
 
 //the route where the human would send the request to
-app.post("api/customs/in",async(req,res)=>{
+app.post("/api/customs/in",async(req,res)=>{
     const {intent}=req.body;
     if(!intent){
         return res.status(400).json({error:"Intent is required"});
@@ -37,8 +37,9 @@ app.post("api/customs/in",async(req,res)=>{
         message:"Your request has been received and is being processed.You can track the progress with the tracking id.",
         trackingId: taskPacketMade.id
     })
+});
 
-    const port=3000;
-    app.listen(port,()=>{
-        console.log(`Border API is running on port ${port}`);
-})
+const port=3000;
+app.listen(port,()=>{
+    console.log(`Border API is running on port ${port}`);
+});
