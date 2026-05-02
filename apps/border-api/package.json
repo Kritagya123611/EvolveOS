@@ -9,11 +9,18 @@
   "author": "",
   "license": "ISC",
   "description": "",
+  "type": "module",
   "devDependencies": {
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/node": "^25.6.0",
+    "@types/uuid": "^11.0.0",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"
+  },
+  "dependencies": {
+    "@axiom/types": "*",
+    "bullmq": "^5.76.5",
+    "uuid": "^14.0.0"
   }
 }

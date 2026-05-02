@@ -39,7 +39,7 @@ export interface AgentEntity {
   id: string;
   name: string;
   domain: AgentDomain;
-  reputation: number;          // 0.0 to 100.0 - dictates job bidding
+  reputation: number;          // this would be the reputation score between 0 to 100
   systemPrompt: string;        // The core personality and instruction set
   state: AgentState;
 }
