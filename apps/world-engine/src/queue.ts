@@ -4,10 +4,15 @@
 // apps/world-engine/src/queue.ts
 import { Worker, Job } from 'bullmq';
 import type { TaskPacket } from '@axiom/types';
+import { assignTaskToAgents } from './dispatcher.js';
 
 console.log('evolveos World Engine Booting... Listening for tasks on the Job Board.');
 
-// The Worker represents an Agent monitoring the Job Board
+// The Worker represents an Agent monitoring the Job Board for new tasks to process.
+//i have to remove the demo worker for now and integrate the assignTaskToAgents function in the 
+// dispatcher.ts file with this worker so that when a new task packet is added to the queue, it would 
+// automatically call the assignTaskToAgents function to assign the task to the appropriate agents 
+// based on the algorithm.
 const worker = new Worker('axiom-tasks', async (job: Job) => {
   const task = job.data as TaskPacket;
   
@@ -15,20 +20,17 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
   console.log(`[INTENT] "${task.intent}"`);
   console.log(`[STATUS] Transitioning to IN_PROGRESS...`);
 
-  await new Promise(resolve => setTimeout(resolve, 2000));
- 
-  const simulatedOutput = `[Agent Output] I have processed your request: "${task.intent}". This is a simulated result.`;
-  
-  console.log(`[STATUS] Task COMPLETED.\n`);
-
-  const completedTask: TaskPacket = { 
-    ...task, 
-    status: 'COMPLETED', 
-    result: simulatedOutput, 
-    completedAt: Date.now() 
-  };
-
-  return completedTask;
+  try{
+    // Call the dispatcher to assign the task to agents based on the algorithm
+    const assignmentResult = assignTaskToAgents(task, task.domain);
+    if(assignmentResult){
+      console.log(`[DISPATCHER] Task ${task.id} assigned successfully.`);
+    }else{
+      console.error(`[DISPATCHER] Failed to assign Task ${task.id}.`);
+    }
+  } catch (error:any) {
+    console.error(`[DISPATCHER] Error occurred while assigning Task ${task.id}: ${error.message}`);
+  }
 }, {
   connection: { host: '127.0.0.1', port: 6379 }
 });

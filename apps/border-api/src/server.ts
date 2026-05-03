@@ -7,12 +7,16 @@ import express from 'express';
 import cors from 'cors';
 import { Queue } from 'bullmq';
 import { v4 as uuidv4 } from 'uuid';
-import type { TaskPacket } from '@axiom/types';
+import type { AgentDomain, TaskPacket } from '@axiom/types';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
+//the queue for the world engine to pick up the task packets and process them
+//i have to bind it with assignTaskToAgents function in the dispatcher so that when a new task 
+//packet is added to the queue, it would automatically call the assignTaskToAgents function to 
+//assign the task to the appropriate agents based on the algorithm.
 const taskQueue=new Queue('taskQueue',{
     connection: { host: '127.0.0.1', port: 6379 }
 })
@@ -23,11 +27,12 @@ app.post("/api/customs/in",async(req,res)=>{
     if(!intent){
         return res.status(400).json({error:"Intent is required"});
     }
-    const taskPacketMade:TaskPacket={
+    const taskPacketMade: TaskPacket = {
         id: uuidv4(),
         intent,
-        status:'QUEUED',
-        createdAt: Date.now()
+        status: 'QUEUED',
+        createdAt: Date.now(),
+        domain: 'default' as AgentDomain
     }
     console.log(`Task Packet ${taskPacketMade.id} Created at Customs. Sending to Queue...`);
     //"process-task" here is the job type
