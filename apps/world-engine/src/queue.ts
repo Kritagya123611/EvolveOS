@@ -5,7 +5,7 @@
 import { Worker, Job } from 'bullmq';
 import type { TaskPacket } from '@axiom/types';
 
-console.log('AXIOM World Engine Booting... Listening for tasks on the Job Board.');
+console.log('evolveos World Engine Booting... Listening for tasks on the Job Board.');
 
 // The Worker represents an Agent monitoring the Job Board
 const worker = new Worker('axiom-tasks', async (job: Job) => {
@@ -16,13 +16,11 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
   console.log(`[STATUS] Transitioning to IN_PROGRESS...`);
 
   await new Promise(resolve => setTimeout(resolve, 2000));
-
-  // The "Output"
+ 
   const simulatedOutput = `[Agent Output] I have processed your request: "${task.intent}". This is a simulated result.`;
   
   console.log(`[STATUS] Task COMPLETED.\n`);
 
-  // Update the packet
   const completedTask: TaskPacket = { 
     ...task, 
     status: 'COMPLETED', 

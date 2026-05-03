@@ -1,5 +1,5 @@
 {
-  "name": "vivarium-master",
+  "name": "evolveos",
   "private": true,
   "workspaces": [
     "apps/*",

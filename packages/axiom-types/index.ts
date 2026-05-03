@@ -44,3 +44,17 @@ export interface AgentEntity {
   state: AgentState;
 }
 
+export type ExecutionMode = 
+  | 'SOLO'          // One expert agent handles it alone
+  | 'MENTORSHIP';   // A Senior agent leads, a Junior agent shadows and learns
+
+export interface JobRecord {
+  id: string;
+  taskId: string;             // Links back to the human's TaskPacket
+  mode: ExecutionMode;
+  leadAgentId: string;        // The Senior or Solo agent
+  shadowAgentId?: string;     // The Junior agent (Optional, only for Mentorship)
+  status: 'DISPATCHED' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+  startedAt: number;
+}
+
