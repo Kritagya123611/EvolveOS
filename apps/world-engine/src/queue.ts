@@ -65,7 +65,7 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
 
   } catch (error: any) {
     console.error(`[DISPATCHER] Error occurred: ${error.message}`);
-    throw error; // Let BullMQ catch it so it marks the job as failed
+    throw error; 
   }
 }, {
   connection: { host: '127.0.0.1', port: 6379 }
