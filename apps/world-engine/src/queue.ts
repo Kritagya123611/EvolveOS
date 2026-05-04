@@ -5,6 +5,7 @@
 import { Worker, Job } from 'bullmq';
 import type { TaskPacket } from '@axiom/types';
 import { assignTaskToAgents } from './dispatcher.js';
+import { getAgentById, unlockAgent } from './registry.js';
 
 console.log('evolveos World Engine Booting... Listening for tasks on the Job Board.');
 
@@ -16,20 +17,55 @@ console.log('evolveos World Engine Booting... Listening for tasks on the Job Boa
 const worker = new Worker('axiom-tasks', async (job: Job) => {
   const task = job.data as TaskPacket;
   
-  console.log(`\n[JOB CLAIMED] Agent picked up Task: ${task.id}`);
+  console.log(`\n=================================================`);
+  console.log(`[JOB CLAIMED] Task ID: ${task.id}`);
   console.log(`[INTENT] "${task.intent}"`);
-  console.log(`[STATUS] Transitioning to IN_PROGRESS...`);
+  console.log(`[STATUS] Dispatcher evaluating available agents...`);
 
-  try{
-    // Call the dispatcher to assign the task to agents based on the algorithm
-    const assignmentResult = assignTaskToAgents(task, task.domain);
-    if(assignmentResult){
-      console.log(`[DISPATCHER] Task ${task.id} assigned successfully.`);
-    }else{
-      console.error(`[DISPATCHER] Failed to assign Task ${task.id}.`);
+  try {
+    // 1. Call the dispatcher (hardcoding 'CODER' domain for this MVP)
+    const assignmentResult = assignTaskToAgents(task, 'CODER');
+    
+    if (!assignmentResult) {
+      // Throwing an error tells BullMQ to put the task back in the queue to try later
+      throw new Error('Worker Starvation: No agents currently available.');
     }
-  } catch (error:any) {
-    console.error(`[DISPATCHER] Error occurred while assigning Task ${task.id}: ${error.message}`);
+
+    // 2. Identify the active agents
+    const leadAgent = getAgentById(assignmentResult.leadAgentId);
+    const shadowAgent = assignmentResult.shadowAgentId ? getAgentById(assignmentResult.shadowAgentId) : undefined;
+
+    console.log(`[DISPATCHER] Task assigned successfully. Mode: ${assignmentResult.mode}`);
+    console.log(`[EXECUTION] Lead: ${leadAgent?.name} is processing the task...`);
+    
+    if (shadowAgent) {
+      console.log(`[MENTORSHIP] Shadow: ${shadowAgent.name} is observing the execution and learning...`);
+    }
+
+    // 3. Simulate the Agent's computation time
+    await new Promise(resolve => setTimeout(resolve, 3000));
+
+    // 4. CRITICAL: Release the atomic locks so agents can take new work!
+    unlockAgent(assignmentResult.leadAgentId);
+    if (assignmentResult.shadowAgentId) {
+      unlockAgent(assignmentResult.shadowAgentId);
+    }
+    
+    console.log(`[STATUS] Execution finished. Agent locks released.`);
+
+    // 5. Construct the final output
+    const completedTask: TaskPacket = { 
+      ...task, 
+      status: 'COMPLETED', 
+      result: `[Result] Handled autonomously by ${leadAgent?.name}`, 
+      completedAt: Date.now() 
+    };
+
+    return completedTask;
+
+  } catch (error: any) {
+    console.error(`[DISPATCHER] Error occurred: ${error.message}`);
+    throw error; // Let BullMQ catch it so it marks the job as failed
   }
 }, {
   connection: { host: '127.0.0.1', port: 6379 }

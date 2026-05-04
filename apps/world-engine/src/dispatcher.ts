@@ -9,10 +9,7 @@ import { AgentRegistry, lockAgent } from './registry.js';
 const SENIOR_THRESHOLD = 80.0;
 const JUNIOR_THRESHOLD = 40.0;
 
-export function assignTaskToAgents(
-  task: TaskPacket,
-  requiredDomain: AgentDomain
-): JobRecord | null {
+export function assignTaskToAgents(task: TaskPacket,requiredDomain: AgentDomain): JobRecord | null {
   console.log(`\n[DISPATCHER] Evaluating task ${task.id} for agent assignment...`);
 
   // Step 1: Filter available agents
