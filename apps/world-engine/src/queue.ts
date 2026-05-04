@@ -6,6 +6,14 @@ import { Worker, Job } from 'bullmq';
 import type { TaskPacket } from '@axiom/types';
 import { assignTaskToAgents } from './dispatcher.js';
 import { getAgentById, unlockAgent } from './registry.js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+// Initialize the LLM Engine (The "CPU" of your agents)
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
+const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
 console.log('evolveos World Engine Booting... Listening for tasks on the Job Board.');
 
@@ -20,59 +28,83 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
   console.log(`\n=================================================`);
   console.log(`[JOB CLAIMED] Task ID: ${task.id}`);
   console.log(`[INTENT] "${task.intent}"`);
-  console.log(`[STATUS] Dispatcher evaluating available agents...`);
 
   try {
-    // 1. Call the dispatcher (hardcoding 'CODER' domain for this MVP)
     const assignmentResult = assignTaskToAgents(task, 'CODER');
     
-    if (!assignmentResult) {
-      // Throwing an error tells BullMQ to put the task back in the queue to try later
-      throw new Error('Worker Starvation: No agents currently available.');
-    }
+    if (!assignmentResult) throw new Error('Worker Starvation: No agents currently available.');
 
-    // 2. Identify the active agents
     const leadAgent = getAgentById(assignmentResult.leadAgentId);
     const shadowAgent = assignmentResult.shadowAgentId ? getAgentById(assignmentResult.shadowAgentId) : undefined;
 
-    console.log(`[DISPATCHER] Task assigned successfully. Mode: ${assignmentResult.mode}`);
     console.log(`[EXECUTION] Lead: ${leadAgent?.name} is processing the task...`);
+
+    // ==========================================================
+    // 1. THE LEAD AGENT THINKS (Executing the task)
+    // ==========================================================
+    const leadPrompt = `
+      SYSTEM INSTRUCTIONS: ${leadAgent?.systemPrompt}
+      HUMAN TASK: ${task.intent}
+      
+      Execute this task. Provide only the architectural solution or code.
+    `;
     
+    const leadResponse = await model.generateContent(leadPrompt);
+    const leadOutput = leadResponse.response.text();
+    console.log(`[LLM CORE] ${leadAgent?.name} successfully generated the solution.`);
+
+    // ==========================================================
+    // 2. THE SHADOW AGENT THINKS (The Mentorship Protocol)
+    // ==========================================================
+    let shadowOutput = '';
     if (shadowAgent) {
-      console.log(`[MENTORSHIP] Shadow: ${shadowAgent.name} is observing the execution and learning...`);
+      console.log(`[MENTORSHIP] Shadow: ${shadowAgent.name} is observing and learning...`);
+      
+      const shadowPrompt = `
+        SYSTEM INSTRUCTIONS: ${shadowAgent.systemPrompt}
+        
+        The Senior Architect just wrote this solution:
+        ${leadOutput}
+        
+        As a junior dev, write a 2-sentence summary of the core design pattern used here so you can save it to your memory.
+      `;
+      
+      const shadowResponse = await model.generateContent(shadowPrompt);
+      shadowOutput = shadowResponse.response.text();
+      console.log(`[LLM CORE] ${shadowAgent.name} synthesized the architectural pattern.`);
     }
 
-    // 3. Simulate the Agent's computation time
-    await new Promise(resolve => setTimeout(resolve, 3000));
-
-    // 4. CRITICAL: Release the atomic locks so agents can take new work!
+    // Release the atomic locks
     unlockAgent(assignmentResult.leadAgentId);
-    if (assignmentResult.shadowAgentId) {
-      unlockAgent(assignmentResult.shadowAgentId);
-    }
+    if (assignmentResult.shadowAgentId) unlockAgent(assignmentResult.shadowAgentId);
     
     console.log(`[STATUS] Execution finished. Agent locks released.`);
 
-    // 5. Construct the final output
-    const completedTask: TaskPacket = { 
+    // Construct the final output combining both agents' thoughts
+    const finalResult = shadowAgent 
+      ? `### Senior Agent Output:\n${leadOutput}\n\n### Junior Agent Notes:\n${shadowOutput}`
+      : `### Senior Agent Output:\n${leadOutput}`;
+
+    return { 
       ...task, 
       status: 'COMPLETED', 
-      result: `[Result] Handled autonomously by ${leadAgent?.name}`, 
+      result: finalResult, 
       completedAt: Date.now() 
-    };
-
-    return completedTask;
+    } as TaskPacket;
 
   } catch (error: any) {
     console.error(`[DISPATCHER] Error occurred: ${error.message}`);
-    throw error; 
+    throw error;
   }
 }, {
   connection: { host: '127.0.0.1', port: 6379 }
 });
 
 worker.on('completed', (job, returnvalue) => {
-  console.log(`Job ${job.id} successfully executed and returned to memory.`);
+  console.log(`✅ Job ${job.id} successfully executed.`);
+  // ADD THIS LINE to print the actual LLM output:
+  console.log(`\n${returnvalue.result}\n`);
+  console.log(`=================================================\n`);
 });
 
 worker.on('failed', (job, err) => {

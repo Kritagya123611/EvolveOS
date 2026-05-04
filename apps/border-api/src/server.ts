@@ -17,7 +17,7 @@ app.use(express.json());
 //i have to bind it with assignTaskToAgents function in the dispatcher so that when a new task 
 //packet is added to the queue, it would automatically call the assignTaskToAgents function to 
 //assign the task to the appropriate agents based on the algorithm.
-const taskQueue=new Queue('taskQueue',{
+const taskQueue=new Queue('axiom-tasks',{
     connection: { host: '127.0.0.1', port: 6379 }
 })
 
