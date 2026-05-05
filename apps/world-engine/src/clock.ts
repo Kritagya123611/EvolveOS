@@ -7,6 +7,7 @@
 import { AgentRegistry,lockAgent,unlockAgent} from "./registry.js";
 import type { AgentEntity } from "@axiom/types";
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { error } from "console";
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -39,43 +40,51 @@ async function tick(){
         //the loop traverses through all the agents
         //a filter to check agents from same domain and reputation>90
         const topAgents=AgentRegistry.filter(a=>a.domain===agent.domain&&a.reputation>=90);
-        if(topAgents.length>2){
+        if(topAgents.length>=2){
             console.log("multiple top agents detected hence creating new agents with combined knowledge of top agents");
             
             const agentA=topAgents[0]!;
             const agentB=topAgents[1]!;
 
-            const genesisPrompt = `
-            You are the evolution engine of an autonomous civilization.
-            Parent A's System Prompt: "${agentA.systemPrompt}"
-            Parent B's System Prompt: "${agentB.systemPrompt}"
+            lockAgent(agentA.id);
+            lockAgent(agentB.id);
 
-            Create a brand new system prompt for their "child" agent. 
-            The child should combine their architectural knowledge but have a slight "mutation"—a new, specialized hyper-focus (e.g., security, performance, or distributed state).
-            
-            Output ONLY the new system prompt.
+            try{
+                const evolutionPrompt = `
+                You are the evolution engine of an autonomous AI civilization.
+                Parent A's System Prompt: "${agentA.systemPrompt}"
+                Parent B's System Prompt: "${agentB.systemPrompt}"
+
+                Create a brand new system prompt for their "child" agent. 
+                The child should combine their traits but have a slight "mutation"—a new, hyper-specific focus (e.g., security, edge-computing, or AI agents).
+                
+                Output ONLY the new system prompt. No markdown, no quotes, no conversational text.
             `;
 
-            const response = await model.generateContent(genesisPrompt);
-            const childPrompt = response.response.text();
+            const response = await model.generateContent(evolutionPrompt);
+            const childPrompt = response.response.text().trim();
 
             const childAgent: AgentEntity = {
-        id: `agent-${Date.now()}`,
-        name: `Generation 2 Agent`, // Or have the LLM name them!
-        domain: agentA.domain,
-        reputation: 50, // Children start at baseline
-        systemPrompt: childPrompt.trim(),
-        state: 'IDLE'
-    };
+                id: `agent-${Date.now()}`,
+                name: `Gen-2 Architect`,
+                domain: agentA.domain,
+                reputation: 50, // Starts at the bottom of the hierarchy
+                systemPrompt: childPrompt,
+                state: 'IDLE'
+            };
 
-        AgentRegistry.push(childAgent);
+            AgentRegistry.push(childAgent);
 
-        console.log(`[BIRTH] A new agent was spawned! Memory size: ${AgentRegistry.length}`);
-        console.log(`[MUTATION] Child Profile: ${childPrompt.trim()}`);
-
-        // Unlock the parents
-        unlockAgent(agentA.id);
-        unlockAgent(agentB.id);
+            console.log(`🎉 [BIRTH] A new agent was spawned! New Population: ${AgentRegistry.length}`);
+            console.log(`🧬 [MUTATION] Child DNA: "${childPrompt}"`);
+            }catch(error:any){
+                console.error(`Error during agent evolution: ${error.message}`);
+            }finally{
+                unlockAgent(agentA.id);
+                unlockAgent(agentB.id);
+            }
+        }else{
+            console.log(`No significant population of top agents in ${agent.domain} domain. Current top agents: ${topAgents.length}`);
         }
     }
 }

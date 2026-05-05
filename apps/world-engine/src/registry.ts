@@ -18,7 +18,7 @@ export const AgentRegistry:AgentEntity[]=[
         id: 'agent-2',
         name: 'Junior Agent',
         domain: 'CODER',
-        reputation: 80,
+        reputation: 95,
         systemPrompt: 'You are a junior developer learning from your senior colleague.',
         state: 'IDLE'
     }
