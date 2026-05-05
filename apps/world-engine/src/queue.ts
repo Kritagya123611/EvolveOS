@@ -101,7 +101,7 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
 });
 
 worker.on('completed', (job, returnvalue) => {
-  console.log(`✅ Job ${job.id} successfully executed.`);
+  console.log(`Job ${job.id} successfully executed.`);
   // ADD THIS LINE to print the actual LLM output:
   console.log(`\n${returnvalue.result}\n`);
   console.log(`=================================================\n`);
