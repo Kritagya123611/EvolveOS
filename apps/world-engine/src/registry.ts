@@ -36,8 +36,6 @@ export const AgentRegistry: AgentEntity[] = [
     }
 ];
 
-// --- CORE REGISTRY LOGIC ---
-
 export function getAgentById(id: string): AgentEntity | undefined {
     return AgentRegistry.find(agent => agent.id === id);
 }

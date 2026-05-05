@@ -1,8 +1,3 @@
-//this file will have the express logic where the taskpacket would come and be validated 
-//then it would be put on the redis queue for the world engine to pick up
-//basically this is packaging the human request into the taskpacket and putting it on the queue
-//and finally the world engine would pick it up and process it
-
 import express from 'express';
 import cors from 'cors';
 import { Queue } from 'bullmq';
@@ -13,15 +8,10 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-//the queue for the world engine to pick up the task packets and process them
-//i have to bind it with assignTaskToAgents function in the dispatcher so that when a new task 
-//packet is added to the queue, it would automatically call the assignTaskToAgents function to 
-//assign the task to the appropriate agents based on the algorithm.
 const taskQueue=new Queue('axiom-tasks',{
     connection: { host: '127.0.0.1', port: 6379 }
 })
 
-//the route where the human would send the request to
 app.post("/api/customs/in",async(req,res)=>{
     const {intent}=req.body;
     if(!intent){
@@ -35,9 +25,7 @@ app.post("/api/customs/in",async(req,res)=>{
         domain: 'default' as AgentDomain
     }
     console.log(`Task Packet ${taskPacketMade.id} Created at Customs. Sending to Queue...`);
-    //"process-task" here is the job type
     await taskQueue.add('process-task', taskPacketMade)
-    //send the tracking id back to the human so they can track the progress of their request
     res.json({
         message:"Your request has been received and is being processed.You can track the progress with the tracking id.",
         trackingId: taskPacketMade.id

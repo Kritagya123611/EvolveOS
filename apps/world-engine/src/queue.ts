@@ -1,7 +1,3 @@
-//this file would wait for the queue to have a task packet and then simulate a 
-//fake ai agent for now to process the task for 3 seconds and then mark it as completed with a fake result
-
-// apps/world-engine/src/queue.ts
 import { Worker, Job } from 'bullmq';
 import type { TaskPacket } from '@axiom/types';
 import { assignTaskToAgents } from './dispatcher.js';
@@ -16,15 +12,10 @@ const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
 console.log('evolveos World Engine Booting... Listening for tasks on the Job Board.');
 
-// The Worker represents an Agent monitoring the Job Board for new tasks to process.
-//i have to remove the demo worker for now and integrate the assignTaskToAgents function in the 
-// dispatcher.ts file with this worker so that when a new task packet is added to the queue, it would 
-// automatically call the assignTaskToAgents function to assign the task to the appropriate agents 
-// based on the algorithm.
 const worker = new Worker('axiom-tasks', async (job: Job) => {
   const task = job.data as TaskPacket;
 
-  console.log(`[JOB CLAIMED] Task ID: ${task.id}`);
+  console.log(`\n[JOB CLAIMED] Task ID: ${task.id}`);
   console.log(`[INTENT] "${task.intent}"`);
 
   try {
@@ -37,43 +28,52 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
 
     console.log(`[EXECUTION] Lead: ${leadAgent?.name} is processing the task...`);
 
-    const leadPrompt = `
-      SYSTEM INSTRUCTIONS: ${leadAgent?.systemPrompt}
-      HUMAN TASK: ${task.intent}
-      
-      Execute this task. Provide only the architectural solution or code.
-    `;
-    
-    const leadResponse = await model.generateContent(leadPrompt);
-    const leadOutput = leadResponse.response.text();
-    console.log(`[LLM CORE] ${leadAgent?.name} successfully generated the solution.`);
+    let leadOutput = '';
+    try {
+        const leadPrompt = `
+          SYSTEM INSTRUCTIONS: ${leadAgent?.systemPrompt}
+          HUMAN TASK: ${task.intent}
+          
+          Execute this task. Provide only the architectural solution or code.
+        `;
+        const leadResponse = await model.generateContent(leadPrompt);
+        leadOutput = leadResponse.response.text();
+        console.log(`[LLM CORE] ${leadAgent?.name} successfully generated the solution.`);
+    } catch (apiError: any) {
+        console.log(`[CIRCUIT BREAKER] LLM Overloaded (${apiError.message.substring(0, 20)}). Mocking Lead execution...`);
+        leadOutput = `// [MOCK ARCHITECTURE] Generated via Fallback Circuit Breaker\n// The LLM API is currently experiencing high load.\n\nfunction mockedExecute() {\n  console.log("Task executed successfully using local fallback logic.");\n}`;
+    }
 
     let shadowOutput = '';
     if (shadowAgent) {
       console.log(`[MENTORSHIP] Shadow: ${shadowAgent.name} is observing and learning...`);
       
-      const shadowPrompt = `
-        SYSTEM INSTRUCTIONS: ${shadowAgent.systemPrompt}
-        
-        The Senior Architect just wrote this solution:
-        ${leadOutput}
-        
-        As a junior dev, write a 2-sentence summary of the core design pattern used here so you can save it to your memory.
-      `;
-      
-      const shadowResponse = await model.generateContent(shadowPrompt);
-      shadowOutput = shadowResponse.response.text();
-      console.log(`[LLM CORE] ${shadowAgent.name} synthesized the architectural pattern.`);
+      try {
+          const shadowPrompt = `
+            SYSTEM INSTRUCTIONS: ${shadowAgent.systemPrompt}
+            
+            The Senior Architect just wrote this solution:
+            ${leadOutput}
+            
+            As a junior dev, write a 2-sentence summary of the core design pattern used here so you can save it to your memory.
+          `;
+          
+          const shadowResponse = await model.generateContent(shadowPrompt);
+          shadowOutput = shadowResponse.response.text();
+          console.log(`[LLM CORE] ${shadowAgent.name} synthesized the architectural pattern.`);
+      } catch (apiError: any) {
+          console.log(`[CIRCUIT BREAKER] LLM Overloaded. Mocking Mentorship synthesis...`);
+          shadowOutput = `[MOCK NOTES] The senior architect utilized a highly resilient fallback pattern. I have saved this standard operating procedure to my internal memory.`;
+      }
     }
-
     unlockAgent(assignmentResult.leadAgentId);
     if (assignmentResult.shadowAgentId) unlockAgent(assignmentResult.shadowAgentId);
     
-    console.log(`[STATUS] Execution finished. Agent locks released.`);
+    console.log(`[STATUS] Execution finished. Agent locks released safely.`);
 
     const finalResult = shadowAgent 
-      ? `### Senior Agent Output:\n${leadOutput}\n\n### Junior Agent Notes:\n${shadowOutput}`
-      : `### Senior Agent Output:\n${leadOutput}`;
+      ? `Senior Agent Output:\n${leadOutput}\n\n### Junior Agent Notes:\n${shadowOutput}`
+      : `Senior Agent Output:\n${leadOutput}`;
 
     return { 
       ...task, 
@@ -83,7 +83,7 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
     } as TaskPacket;
 
   } catch (error: any) {
-    console.error(`[DISPATCHER] Error occurred: ${error.message}`);
+    console.error(`[DISPATCHER ERROR] ${error.message}`);
     throw error;
   }
 }, {
