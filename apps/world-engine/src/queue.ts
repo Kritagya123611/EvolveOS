@@ -11,7 +11,6 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Initialize the LLM Engine (The "CPU" of your agents)
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
 const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
@@ -24,8 +23,7 @@ console.log('evolveos World Engine Booting... Listening for tasks on the Job Boa
 // based on the algorithm.
 const worker = new Worker('axiom-tasks', async (job: Job) => {
   const task = job.data as TaskPacket;
-  
-  console.log(`\n=================================================`);
+
   console.log(`[JOB CLAIMED] Task ID: ${task.id}`);
   console.log(`[INTENT] "${task.intent}"`);
 
@@ -39,9 +37,6 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
 
     console.log(`[EXECUTION] Lead: ${leadAgent?.name} is processing the task...`);
 
-    // ==========================================================
-    // 1. THE LEAD AGENT THINKS (Executing the task)
-    // ==========================================================
     const leadPrompt = `
       SYSTEM INSTRUCTIONS: ${leadAgent?.systemPrompt}
       HUMAN TASK: ${task.intent}
@@ -53,9 +48,6 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
     const leadOutput = leadResponse.response.text();
     console.log(`[LLM CORE] ${leadAgent?.name} successfully generated the solution.`);
 
-    // ==========================================================
-    // 2. THE SHADOW AGENT THINKS (The Mentorship Protocol)
-    // ==========================================================
     let shadowOutput = '';
     if (shadowAgent) {
       console.log(`[MENTORSHIP] Shadow: ${shadowAgent.name} is observing and learning...`);
@@ -74,13 +66,11 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
       console.log(`[LLM CORE] ${shadowAgent.name} synthesized the architectural pattern.`);
     }
 
-    // Release the atomic locks
     unlockAgent(assignmentResult.leadAgentId);
     if (assignmentResult.shadowAgentId) unlockAgent(assignmentResult.shadowAgentId);
     
     console.log(`[STATUS] Execution finished. Agent locks released.`);
 
-    // Construct the final output combining both agents' thoughts
     const finalResult = shadowAgent 
       ? `### Senior Agent Output:\n${leadOutput}\n\n### Junior Agent Notes:\n${shadowOutput}`
       : `### Senior Agent Output:\n${leadOutput}`;
@@ -102,9 +92,7 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
 
 worker.on('completed', (job, returnvalue) => {
   console.log(`Job ${job.id} successfully executed.`);
-  // ADD THIS LINE to print the actual LLM output:
   console.log(`\n${returnvalue.result}\n`);
-  console.log(`=================================================\n`);
 });
 
 worker.on('failed', (job, err) => {

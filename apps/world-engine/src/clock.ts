@@ -9,6 +9,8 @@ import type { AgentEntity } from "@axiom/types";
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { error } from "console";
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
 
 dotenv.config();
 
@@ -16,7 +18,7 @@ dotenv.config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
 const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-const TICK_INTERVAL = 5000; // Check every 5 seconds
+const TICK_INTERVAL = 20000; // Check every 20 seconds
 
 console.log('evolveos World Engine Clock started. Monitoring agent states for autonomous research opportunities.');
 
@@ -40,7 +42,8 @@ async function tick(){
         //the loop traverses through all the agents
         //a filter to check agents from same domain and reputation>90
         const topAgents=AgentRegistry.filter(a=>a.domain===agent.domain&&a.reputation>=90);
-        if(topAgents.length>=2){
+        const MaxPopulationForEvolution=10;
+        if(topAgents.length >= 2 && AgentRegistry.length < MaxPopulationForEvolution){
             console.log("multiple top agents detected hence creating new agents with combined knowledge of top agents");
             
             const agentA=topAgents[0]!;
@@ -68,15 +71,19 @@ async function tick(){
                 id: `agent-${Date.now()}`,
                 name: `Gen-2 Architect`,
                 domain: agentA.domain,
-                reputation: 50, // Starts at the bottom of the hierarchy
+                reputation: 50, 
                 systemPrompt: childPrompt,
                 state: 'IDLE'
             };
 
             AgentRegistry.push(childAgent);
 
-            console.log(`🎉 [BIRTH] A new agent was spawned! New Population: ${AgentRegistry.length}`);
-            console.log(`🧬 [MUTATION] Child DNA: "${childPrompt}"`);
+            //updating the registry file with the new agent
+            //const fileContent = `import type { AgentEntity } from '@axiom/types';\n\nexport const AgentRegistry: AgentEntity[] = ${JSON.stringify(AgentRegistry, null, 4)};`;
+            //fs.writeFileSync(path.join(process.cwd(), 'src', 'registry.ts'), fileContent);
+
+            console.log(`[BIRTH] A new agent was spawned! New Population: ${AgentRegistry.length}`);
+            console.log(`[MUTATION] Child DNA: "${childPrompt}"`);
             }catch(error:any){
                 console.error(`Error during agent evolution: ${error.message}`);
             }finally{
