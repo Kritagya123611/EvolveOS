@@ -19,7 +19,7 @@ export function assignTaskToAgents(task: TaskPacket,requiredDomain: AgentDomain)
   availableAgents.sort((a, b) => b.reputation - a.reputation);
 
   const highestRepAgent = availableAgents[0];
-  const lowestRepAgent = availableAgents.at(-1);
+  const lowestRepAgent = availableAgents[availableAgents.length - 1];
 
   if (!highestRepAgent || !lowestRepAgent) {
     console.error('[DISPATCHER] Unexpected state: agents not found after filtering.');
