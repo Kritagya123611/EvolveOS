@@ -1,57 +1,71 @@
-// apps/world-engine/src/registry.ts
+import { supabase } from './db.js';
 import type { AgentEntity } from '@axiom/types';
 
-export const AgentRegistry: AgentEntity[] = [
-    {
-        "id": "agent-1",
-        "name": "Senior Agent",
-        "domain": "CODER",
-        "reputation": 95,
-        "systemPrompt": "You are a senior architect with extensive experience in system design.",
-        "state": "IDLE"
-    },
-    {
-        "id": "agent-2",
-        "name": "Junior Agent",
-        "domain": "CODER",
-        "reputation": 95,
-        "systemPrompt": "You are a junior developer learning from your senior colleague.",
-        "state": "IDLE"
-    },
-    {
-        "id": "agent-1777956942992",
-        "name": "Gen-2 Architect",
-        "domain": "CODER",
-        "reputation": 50,
-        "systemPrompt": "You are a system architect specializing in AI agent design and evolution. You possess the strategic acumen and extensive experience of a senior architect, while retaining the meticulous curiosity and fervent learning drive of a junior developer.",
-        "state": "IDLE"
-    },
-    {
-        "id": "agent-1777956943155",
-        "name": "Gen-2 Architect",
-        "domain": "CODER",
-        "reputation": 50,
-        "systemPrompt": "You are a dedicated AI agent architect and developer. You bring the strategic vision of a senior system designer to the practical implementation of intelligent, autonomous agents, relentlessly learning and optimizing for robust, scalable, and ethically aligned AI ecosystems.",
-        "state": "IDLE"
+// The lightning-fast in-memory cache (The "RAM" of the world)
+export let AgentRegistry: AgentEntity[] = [];
+
+export async function bootWorld() {
+    console.log('🌍 [BOOT] Connecting to Supabase Archive...');
+    const { data, error } = await supabase.from('agents').select('*');
+    
+    if (error) {
+        console.error('❌ [BOOT ERROR] Could not read from database:', error.message);
+        return;
     }
-];
+
+    if (data && data.length > 0) {
+        // Map Postgres snake_case back to TypeScript camelCase
+        AgentRegistry = data.map(dbAgent => ({
+            id: dbAgent.id,
+            name: dbAgent.name,
+            domain: dbAgent.domain,
+            reputation: dbAgent.reputation,
+            systemPrompt: dbAgent.system_prompt, // mapped!
+            // CRITICAL: We force them to 'IDLE' on boot. 
+            // If the server crashed while they were 'WORKING', we don't want them locked forever.
+            state: 'IDLE' 
+        }));
+        console.log(`🧬 [BOOT] Resurrected ${AgentRegistry.length} agents from permanent storage.`);
+    } else {
+        console.log('🌍 [BOOT] Database is empty. Awaiting the first generation of agents.');
+    }
+}
 
 export function getAgentById(id: string): AgentEntity | undefined {
-    return AgentRegistry.find(agent => agent.id === id);
+    return AgentRegistry.find(a => a.id === id);
 }
 
-export function lockAgent(id: string): boolean {
-    const agent = getAgentById(id);
-    if (agent && agent.state === 'IDLE') {
+// Spawns an agent into RAM and permanently into Supabase
+export async function spawnAgent(agent: AgentEntity) {
+    AgentRegistry.push(agent); // Add to RAM instantly so the clock sees it
+    
+    // Save to permanent storage
+    const { error } = await supabase.from('agents').insert({
+        id: agent.id,
+        name: agent.name,
+        domain: agent.domain,
+        reputation: agent.reputation,
+        system_prompt: agent.systemPrompt,
+        state: agent.state
+    });
+    
+    if (error) console.error(`❌ [DB ERROR] Failed to save agent ${agent.name}:`, error.message);
+}
+
+// Lock agent in RAM and DB
+export async function lockAgent(id: string) {
+    const agent = AgentRegistry.find(a => a.id === id);
+    if (agent) {
         agent.state = 'WORKING';
-        return true;
+        await supabase.from('agents').update({ state: 'WORKING' }).eq('id', id);
     }
-    return false;
 }
 
-export function unlockAgent(id: string): void {
-    const agent = getAgentById(id);
+// Unlock agent in RAM and DB
+export async function unlockAgent(id: string) {
+    const agent = AgentRegistry.find(a => a.id === id);
     if (agent) {
         agent.state = 'IDLE';
+        await supabase.from('agents').update({ state: 'IDLE' }).eq('id', id);
     }
 }
