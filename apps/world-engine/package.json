@@ -12,12 +12,14 @@
   "description": "",
   "devDependencies": {
     "@types/node": "^25.6.0",
+    "@types/ws": "^8.18.1",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3"
   },
   "dependencies": {
     "@axiom/types": "*",
     "@google/generative-ai": "^0.24.1",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "ws": "^8.20.0"
   }
 }

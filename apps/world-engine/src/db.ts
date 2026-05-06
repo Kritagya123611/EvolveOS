@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
+import ws from 'ws'; // <-- Changed to 'ws'
 
 dotenv.config();
 
@@ -10,5 +11,16 @@ if (!supabaseUrl || !supabaseKey) {
     throw new Error("Missing Supabase credentials in .env");
 }
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = createClient(supabaseUrl, supabaseKey, {
+    auth: {
+        persistSession: false // Since this is a server, we don't need browser localStorage
+    },
+    realtime: {
+        transport: ws // Exactly what the error suggested
+    } as any,
+    global: {
+        WebSocket: ws // Fallback global injection
+    } as any
+});
+
 console.log('🔗 [DATABASE] Connected to AXIOM World Archive.');
