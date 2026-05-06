@@ -95,5 +95,3 @@ export async function searchMemories(query: string,topK: number = 5):Promise<Mem
 
   return filtered.slice(0, topK).map(item => item.memory);
 }
-//write a commit message for the above function
-//

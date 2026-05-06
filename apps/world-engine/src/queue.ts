@@ -3,6 +3,7 @@ import type { TaskPacket } from '@axiom/types';
 import { assignTaskToAgents } from './dispatcher.js';
 import { getAgentById, unlockAgent } from './registry.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { saveMemory,searchMemories } from './memory.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -18,6 +19,9 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
   console.log(`\n[JOB CLAIMED] Task ID: ${task.id}`);
   console.log(`[INTENT] "${task.intent}"`);
 
+  //We need the Junior Agent to Save memories, and the Senior Agent to Retrieve them before 
+  //starting a task
+
   try {
     const assignmentResult = assignTaskToAgents(task, 'CODER');
     
@@ -30,16 +34,25 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
 
     let leadOutput = '';
     try {
+        // --- FETCH PAST MEMORIES ---
+        const pastLessons = await searchMemories(task.intent);
+        const memoryContext = pastLessons.length > 0 
+            ? `\nRELEVANT PAST LESSONS FROM MEMORY BANK:\n- ${pastLessons.join('\n- ')}\n` 
+            : `\n(No relevant past memories found for this task.)\n`;
+
+        // --- INJECT INTO CONTEXT ---
         const leadPrompt = `
           SYSTEM INSTRUCTIONS: ${leadAgent?.systemPrompt}
+          ${memoryContext}
           HUMAN TASK: ${task.intent}
           
-          Execute this task. Provide only the architectural solution or code.
+          Execute this task. Provide only the architectural solution or code. Use past lessons to avoid previous mistakes.
         `;
+        
         const leadResponse = await model.generateContent(leadPrompt);
         leadOutput = leadResponse.response.text();
         console.log(`[LLM CORE] ${leadAgent?.name} successfully generated the solution.`);
-    } catch (apiError: any) {
+    }catch (apiError: any) {
         console.log(`[CIRCUIT BREAKER] LLM Overloaded (${apiError.message.substring(0, 20)}). Mocking Lead execution...`);
         leadOutput = `// [MOCK ARCHITECTURE] Generated via Fallback Circuit Breaker\n// The LLM API is currently experiencing high load.\n\nfunction mockedExecute() {\n  console.log("Task executed successfully using local fallback logic.");\n}`;
     }
@@ -60,6 +73,8 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
           
           const shadowResponse = await model.generateContent(shadowPrompt);
           shadowOutput = shadowResponse.response.text();
+          // Save the shadow agent's notes to memory for future retrieval
+          await saveMemory(shadowAgent.id, shadowOutput);
           console.log(`[LLM CORE] ${shadowAgent.name} synthesized the architectural pattern.`);
       } catch (apiError: any) {
           console.log(`[CIRCUIT BREAKER] LLM Overloaded. Mocking Mentorship synthesis...`);
