@@ -57,7 +57,20 @@ export async function saveMemory(agentId: string, text: string) {
     MemoryStore.push(newMemory);
     console.log(`[MEMORY] Knowledge securely stored. Total Memories: ${MemoryStore.length}`);
 }
-//write a commit message for the above code
-//commit message: "Implement in-memory vector store for agent memories using cosine similarity and embedding generation."
-//some diffrent
-//commit message: "Build foundational memory system for agents with text embedding and storage capabilities."
+//cosine similarity function to compare two vectors(just the dot product)
+function cosineSimilarity(vecA: number[], vecB: number[]): number {
+    if (!vecA || !vecB) return 0;
+    let dotProduct = 0;
+    let normA = 0;
+    let normB = 0;
+    const minLength = Math.min(vecA.length, vecB.length);
+    for(let i=0;i<minLength;i++){
+        const valA = vecA[i] ?? 0;
+        const valB = vecB[i] ?? 0;
+        dotProduct += valA * valB;
+        normA += valA * valA;
+        normB += valB * valB;
+    }
+    if (normA === 0 || normB === 0) return 0;
+    return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+}
