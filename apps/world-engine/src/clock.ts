@@ -1,4 +1,4 @@
-import { AgentRegistry, lockAgent, unlockAgent } from "./registry.js";
+import { AgentRegistry, lockAgent, unlockAgent,bootWorld, spawnAgent } from "./registry.js";
 import type { AgentEntity } from "@axiom/types";
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import dotenv from 'dotenv';
@@ -73,7 +73,8 @@ async function tick() {
             state: 'IDLE'
         };
 
-        AgentRegistry.push(childAgent);
+        // Spawn the new entity into RAM and Supabase!
+        await spawnAgent(childAgent);
 
         console.log(`[BIRTH] A new agent was spawned! New Population: ${AgentRegistry.length}`);
         console.log(`[MUTATION] Child DNA: "${childPrompt}"\n`);
@@ -85,4 +86,6 @@ async function tick() {
     }
 }
 
+// Boot the world from the database, THEN start the clock
+await bootWorld();
 setInterval(tick, TICK_INTERVAL);

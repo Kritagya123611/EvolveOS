@@ -36,6 +36,7 @@ export function getAgentById(id: string): AgentEntity | undefined {
 }
 
 // Spawns an agent into RAM and permanently into Supabase
+//means ki new (child) agent ko RAM me daalna and database me bhi daalna
 export async function spawnAgent(agent: AgentEntity) {
     AgentRegistry.push(agent); // Add to RAM instantly so the clock sees it
     
