@@ -74,3 +74,26 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
     if (normA === 0 || normB === 0) return 0;
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
+
+//function for searching a memory from the memory store
+export async function searchMemories(query: string,topK: number = 5):Promise<Memory[]>{
+  if (MemoryStore.length === 0) return [];
+
+  const queryVector = await generateEmbedding(query);
+  if (!queryVector || queryVector.length === 0) return [];
+
+  const scored: { memory: Memory; score: number }[] = [];
+
+  for (const memory of MemoryStore) {
+    const score = cosineSimilarity(queryVector, memory.embedding);
+    scored.push({ memory, score });
+  }
+  scored.sort((a, b) => b.score - a.score);
+
+  const threshold = 0.6;
+  const filtered = scored.filter(item => item.score >= threshold);
+
+  return filtered.slice(0, topK).map(item => item.memory);
+}
+//write a commit message for the above function
+//
