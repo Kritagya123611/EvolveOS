@@ -19,8 +19,10 @@
     ↓
     Actual OS / File System actions
 */
-import { FunctionDeclaration, SchemaType } from '@google/generative-ai';
+import type { FunctionDeclaration } from '@google/generative-ai';
+import { SchemaType } from '@google/generative-ai';
 import { execSync } from 'child_process';
+import { log } from 'console';
 import fs from 'fs';
 import path from 'path';
 
@@ -59,3 +61,32 @@ export const AXIOM_SYSCALLS: FunctionDeclaration[] = [
         }
     }
 ];
+
+//function to run the calls actually on the machine
+export async function executeSyscall(name:string,args:any):Promise<string> {
+    console.log("[SYSCALL] Executing:", name, args);
+    try{
+        if(name==="runTerminalCommand"){
+            const output = execSync(args.command, { encoding: 'utf-8' });
+            console.log("[SYSCALL] Command successfully executed");
+            return output||"Command executed successfully, but there was no output.";
+        }else if(name==="writeLocalFile"){
+            // Write the file to the disk
+            const targetPath = path.resolve(process.cwd(), args.filepath);
+            
+            // Ensure the directory exists before writing
+            const dir = path.dirname(targetPath);
+            if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+            
+            fs.writeFileSync(targetPath, args.content);
+            console.log(`[SYSCALL SUCCESS] File written to ${targetPath}`);
+            return `Success: File written to ${targetPath}`;
+        }else{
+            console.error("[SYSCALL ERROR] Unknown syscall name:", name);
+            return `Error: Unknown syscall name "${name}"`;
+        }
+    }catch(error:any){
+        console.error("[SYSCALL ERROR] An error occurred while executing syscall:", error.message);
+        return `Error executing syscall: ${error.message}`;
+    }
+}
