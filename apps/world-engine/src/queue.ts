@@ -14,7 +14,7 @@ const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
 console.log('evolveos World Engine Booting...');
 
-// 🔴 CHANGE 1: WE MUST BOOT THE WORLD BEFORE LISTENING FOR JOBS
+//just retrieve the existing agents from the db and prepare the world for incoming tasks
 await bootWorld();
 
 console.log('Listening for tasks on the Job Board.');
@@ -26,13 +26,9 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
   console.log(`[INTENT] "${task.intent}"`);
 
   try {
-    // 🔴 CHANGE 2: CHANGE 'CODER' TO 'INFRASTRUCTURE' TO MATCH YOUR DB
-    const assignmentResult = assignTaskToAgents(
-      task,
+    const assignmentResult = assignTaskToAgents(task,
       'INFRASTRUCTURE' as Parameters<typeof assignTaskToAgents>[1]
     );
-    
-    if (!assignmentResult) throw new Error('Worker Starvation: No agents currently available.');
     
     if (!assignmentResult) throw new Error('Worker Starvation: No agents currently available.');
 
@@ -43,13 +39,13 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
 
     let leadOutput = '';
     try {
-        // --- FETCH PAST MEMORIES ---
+        //fetching past memories here
         const pastLessons = await searchMemories(task.intent);
         const memoryContext = pastLessons.length > 0 
             ? `\nRELEVANT PAST LESSONS FROM MEMORY BANK:\n- ${pastLessons.join('\n- ')}\n` 
             : `\n(No relevant past memories found for this task.)\n`;
 
-        // 1. Give the agent its tools and memory
+        //giving the agent its tools and memory
         const chat = model.startChat({
             tools: [{ functionDeclarations: AXIOM_SYSCALLS }],
             systemInstruction: `${leadAgent?.systemPrompt}\n${memoryContext}`
@@ -57,23 +53,20 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
 
         console.log(`[LLM CORE] ${leadAgent?.name} is analyzing the task and deciding on tools...`);
         
-        // 2. Give the agent the task
+        //give the agent the task
         let result = await chat.sendMessage(`HUMAN TASK: ${task.intent}\n\nExecute this task. Use your tools if you need to interact with the system.`);
 
-        // 3. THE JUDGEMENT LOOP (This replaces generateContent)
-        // If result.response.functionCalls exists, it means the LLM decided it NEEDS a tool.
+        //if result.response.functionCalls exists, it means the llm decided it needs a tool.
         let functionCalls = result.response.functionCalls();
         while (functionCalls && functionCalls.length > 0) {
 
             const call = functionCalls[0]!;
 
-            // Execute tool
             const toolOutput = await executeSyscall(
                 call.name,
                 call.args
             );
 
-            // Return tool result back to model
             result = await chat.sendMessage([
                 {
                     functionResponse: {
@@ -87,8 +80,6 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
 
             functionCalls = result.response.functionCalls();
         }
-
-        // 4. Once the while-loop finishes, the agent is done using tools and gives us the final text summary.
         leadOutput = result.response.text();
         console.log(`[LLM CORE] ${leadAgent?.name} successfully completed the execution.`);
 
@@ -113,7 +104,6 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
           
           const shadowResponse = await model.generateContent(shadowPrompt);
           shadowOutput = shadowResponse.response.text();
-          // Save the shadow agent's notes to memory for future retrieval
           await saveMemory(shadowAgent.id, shadowOutput);
           console.log(`[LLM CORE] ${shadowAgent.name} synthesized the architectural pattern.`);
       } catch (apiError: any) {

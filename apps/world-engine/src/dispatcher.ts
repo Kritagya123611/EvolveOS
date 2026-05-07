@@ -5,6 +5,8 @@ import { AgentRegistry, lockAgent } from './registry.js';
 const SENIOR_THRESHOLD = 80.0;
 const JUNIOR_THRESHOLD = 40.0;
 
+//the fxn responsible for assigning the task to the agents based on their reputation and 
+//domain and also deciding the mentorship protocol if the conditions are met
 export function assignTaskToAgents(task: TaskPacket,requiredDomain: AgentDomain): JobRecord | null {
   console.log(`\n[DISPATCHER] Evaluating task ${task.id} for agent assignment...`);
 

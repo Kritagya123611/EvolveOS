@@ -13,6 +13,7 @@ const TICK_INTERVAL = 5000; // every 5 seconds
 console.log('evolveos World Engine Clock started. Monitoring agent states for autonomous research opportunities.');
 
 async function tick() {
+    //making the idle agents research on their own and increasing their reputation a bit 
     for (const agent of AgentRegistry) {
         if (agent.state === 'IDLE') {
             const feelsCurious = Math.random();
@@ -26,6 +27,7 @@ async function tick() {
             }
         }
     }
+    //the logic for making new agents by combining the system prompts of the top 2 agents and adding a mutation to it
     const MaxPopulationForEvolution = 10;
     
     const topAgents = AgentRegistry.filter(a => a.reputation >= 90 && a.state === 'IDLE');
@@ -73,7 +75,7 @@ async function tick() {
             state: 'IDLE'
         };
 
-        // Spawn the new entity into RAM and Supabase!
+        // insert the new child agent into RAM and DB
         await spawnAgent(childAgent);
 
         console.log(`[BIRTH] A new agent was spawned! New Population: ${AgentRegistry.length}`);
@@ -86,6 +88,6 @@ async function tick() {
     }
 }
 
-// Boot the world from the database, THEN start the clock
+// retrieve the already made agents first and then start the clock
 await bootWorld();
 setInterval(tick, TICK_INTERVAL);

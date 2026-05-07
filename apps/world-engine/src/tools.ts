@@ -1,24 +1,6 @@
 //The Architecture of a Syscall
-//The Declaration: We tell the LLM, "You have a tool called runTerminalCommand and another 
-// called writeFile. Here is what they do."
-
-//The Decision: The LLM reads the human task. Instead of responding with text, it responds 
-// with a JSON object saying, "Stop thinking. Trigger runTerminalCommand with the argument 
-// mkdir test-dir."
-
-//The Execution: Your Node server catches this JSON, actually runs the command on your 
-// Ubuntu machine, grabs the terminal output, and sends it back to the LLM saying, 
-// "Here is what happened. What next?"
-
 //This file will hold the definitions of what your agents are physically allowed to do
 
-/*
-    LLM Brain
-    ↓
-    Tool Registry (AXIOM_SYSCALLS)
-    ↓
-    Actual OS / File System actions
-*/
 import type { FunctionDeclaration } from '@google/generative-ai';
 import { SchemaType } from '@google/generative-ai';
 import { execSync } from 'child_process';

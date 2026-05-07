@@ -1,29 +1,18 @@
-//this file is the basic implementation of a rag system, it will be used to store the 
-// memory of the agents, and provide a simple interface for the agents to interact with 
-// the memory
-//We are going to build an in-memory vector store from scratch using pure mathematics 
-// (Cosine Similarity)
-//take text, convert it into an array of numbers (a vector embedding), and search for 
-// related memories using geometry
-
-//just the imports
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import { error } from 'console';
+import { GoogleGenerativeAI } from '@google/generative-ai'
 import dotenv from 'dotenv';
 
 dotenv.config();
 
 const genAI=new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
-//model for converting text to embeddings(just an array of numbers)
 const embeddingModel = genAI.getGenerativeModel({ model: 'embedding-001' });
 
 //the skeleton of a single memory
 export interface Memory {
     id: string;
-    agentId: string; // which agent this memory belongs to
-    text: string; // the content of the memory
-    embedding: number[]; // the vector representation of the text
-    timestamp: number; // when the memory was created
+    agentId: string; 
+    text: string; 
+    embedding: number[]; 
+    timestamp: number; 
 }
 
 export const MemoryStore:Memory[]=[];
@@ -31,22 +20,18 @@ export const MemoryStore:Memory[]=[];
 //just converting text to an embedding vector using the embedding model
 export async function generateEmbedding(text: string): Promise<number[]> {
     try {
-        // 1. Try Google's latest embedding model first
         const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
         const result = await embeddingModel.embedContent(text);
         return result.embedding.values;
     } catch (error: any) {
-        console.log(`⚠️ [CIRCUIT BREAKER] Google API 404. Generating local 768-D vector...`);
-        
-        // 2. If Google fails, build a deterministic 768-dimension vector locally
+        console.log(`[CIRCUIT BREAKER] Google API 404. Generating local 768-D vector...`);
+        // just a fallback if api gives error
         const vector = new Array(768).fill(0);
         for (let i = 0; i < text.length; i++) {
             const charCode = text.charCodeAt(i);
             vector[i % 768] += charCode;
             vector[(i * 7) % 768] += charCode * 0.5; // Spread the values
         }
-        
-        // 3. Normalize the vector (Supabase pgvector math requires this)
         const magnitude = Math.sqrt(vector.reduce((sum, val) => sum + (val * val), 0));
         if (magnitude === 0) return vector;
         
@@ -72,6 +57,7 @@ export async function saveMemory(agentId: string, text: string) {
     MemoryStore.push(newMemory);
     console.log(`[MEMORY] Knowledge securely stored. Total Memories: ${MemoryStore.length}`);
 }
+
 //cosine similarity function to compare two vectors(just the dot product)
 function cosineSimilarity(vecA: number[], vecB: number[]): number {
     if (!vecA || !vecB) return 0;

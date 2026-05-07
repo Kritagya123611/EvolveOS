@@ -11,7 +11,8 @@ app.use(express.json());
 const taskQueue=new Queue('axiom-tasks',{
     connection: { host: '127.0.0.1', port: 6379 }
 })
-
+//just a route where the user sends his request with the intent 
+//and we create a task packet and send it to the queue
 app.post("/api/customs/in",async(req,res)=>{
     const {intent}=req.body;
     if(!intent){

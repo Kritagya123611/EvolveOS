@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import dotenv from 'dotenv';
-import ws from 'ws'; // <-- Changed to 'ws'
+import ws from 'ws'; 
 
 dotenv.config();
 
@@ -13,13 +13,13 @@ if (!supabaseUrl || !supabaseKey) {
 
 export const supabase = createClient(supabaseUrl, supabaseKey, {
     auth: {
-        persistSession: false // Since this is a server, we don't need browser localStorage
+        persistSession: false 
     },
     realtime: {
-        transport: ws // Exactly what the error suggested
+        transport: ws 
     } as any,
     global: {
-        WebSocket: ws // Fallback global injection
+        WebSocket: ws 
     } as any
 });
 
