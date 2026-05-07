@@ -1,9 +1,10 @@
 import { Worker, Job } from 'bullmq';
 import type { TaskPacket } from '@axiom/types';
 import { assignTaskToAgents } from './dispatcher.js';
-import { getAgentById, unlockAgent } from './registry.js';
+import { getAgentById, unlockAgent,bootWorld } from './registry.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { saveMemory,searchMemories } from './memory.js';
+import { AXIOM_SYSCALLS, executeSyscall } from './tools.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -11,7 +12,12 @@ dotenv.config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY as string);
 const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-console.log('evolveos World Engine Booting... Listening for tasks on the Job Board.');
+console.log('evolveos World Engine Booting...');
+
+// 🔴 CHANGE 1: WE MUST BOOT THE WORLD BEFORE LISTENING FOR JOBS
+await bootWorld();
+
+console.log('Listening for tasks on the Job Board.');
 
 const worker = new Worker('axiom-tasks', async (job: Job) => {
   const task = job.data as TaskPacket;
@@ -19,11 +25,14 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
   console.log(`\n[JOB CLAIMED] Task ID: ${task.id}`);
   console.log(`[INTENT] "${task.intent}"`);
 
-  //We need the Junior Agent to Save memories, and the Senior Agent to Retrieve them before 
-  //starting a task
-
   try {
-    const assignmentResult = assignTaskToAgents(task, 'CODER');
+    // 🔴 CHANGE 2: CHANGE 'CODER' TO 'INFRASTRUCTURE' TO MATCH YOUR DB
+    const assignmentResult = assignTaskToAgents(
+      task,
+      'INFRASTRUCTURE' as Parameters<typeof assignTaskToAgents>[1]
+    );
+    
+    if (!assignmentResult) throw new Error('Worker Starvation: No agents currently available.');
     
     if (!assignmentResult) throw new Error('Worker Starvation: No agents currently available.');
 
@@ -40,21 +49,52 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
             ? `\nRELEVANT PAST LESSONS FROM MEMORY BANK:\n- ${pastLessons.join('\n- ')}\n` 
             : `\n(No relevant past memories found for this task.)\n`;
 
-        // --- INJECT INTO CONTEXT ---
-        const leadPrompt = `
-          SYSTEM INSTRUCTIONS: ${leadAgent?.systemPrompt}
-          ${memoryContext}
-          HUMAN TASK: ${task.intent}
-          
-          Execute this task. Provide only the architectural solution or code. Use past lessons to avoid previous mistakes.
-        `;
+        // 1. Give the agent its tools and memory
+        const chat = model.startChat({
+            tools: [{ functionDeclarations: AXIOM_SYSCALLS }],
+            systemInstruction: `${leadAgent?.systemPrompt}\n${memoryContext}`
+        });
+
+        console.log(`[LLM CORE] ${leadAgent?.name} is analyzing the task and deciding on tools...`);
         
-        const leadResponse = await model.generateContent(leadPrompt);
-        leadOutput = leadResponse.response.text();
-        console.log(`[LLM CORE] ${leadAgent?.name} successfully generated the solution.`);
-    }catch (apiError: any) {
+        // 2. Give the agent the task
+        let result = await chat.sendMessage(`HUMAN TASK: ${task.intent}\n\nExecute this task. Use your tools if you need to interact with the system.`);
+
+        // 3. THE JUDGEMENT LOOP (This replaces generateContent)
+        // If result.response.functionCalls exists, it means the LLM decided it NEEDS a tool.
+        let functionCalls = result.response.functionCalls();
+        while (functionCalls && functionCalls.length > 0) {
+
+            const call = functionCalls[0]!;
+
+            // Execute tool
+            const toolOutput = await executeSyscall(
+                call.name,
+                call.args
+            );
+
+            // Return tool result back to model
+            result = await chat.sendMessage([
+                {
+                    functionResponse: {
+                        name: call.name,
+                        response: {
+                            result: toolOutput
+                        }
+                    }
+                }
+            ]);
+
+            functionCalls = result.response.functionCalls();
+        }
+
+        // 4. Once the while-loop finishes, the agent is done using tools and gives us the final text summary.
+        leadOutput = result.response.text();
+        console.log(`[LLM CORE] ${leadAgent?.name} successfully completed the execution.`);
+
+    } catch (apiError: any) {
         console.log(`[CIRCUIT BREAKER] LLM Overloaded (${apiError.message.substring(0, 20)}). Mocking Lead execution...`);
-        leadOutput = `// [MOCK ARCHITECTURE] Generated via Fallback Circuit Breaker\n// The LLM API is currently experiencing high load.\n\nfunction mockedExecute() {\n  console.log("Task executed successfully using local fallback logic.");\n}`;
+        leadOutput = `// [MOCK ARCHITECTURE] Generated via Fallback Circuit Breaker\n// The LLM API is currently experiencing high load.`;
     }
 
     let shadowOutput = '';
