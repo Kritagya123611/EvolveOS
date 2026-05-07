@@ -1,3 +1,4 @@
+//server.ts
 import express from 'express';
 import cors from 'cors';
 import { Queue } from 'bullmq';
@@ -11,6 +12,11 @@ app.use(express.json());
 const taskQueue=new Queue('axiom-tasks',{
     connection: { host: '127.0.0.1', port: 6379 }
 })
+
+app.get('/health', (req, res) => {
+    res.status(200).json({ status: 'ok', message: 'AXIOM Border API is online' });
+});
+
 //just a route where the user sends his request with the intent 
 //and we create a task packet and send it to the queue
 app.post("/api/customs/in",async(req,res)=>{

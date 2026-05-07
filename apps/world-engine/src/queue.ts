@@ -19,6 +19,7 @@ await bootWorld();
 
 console.log('Listening for tasks on the Job Board.');
 
+//checking the redis queue for new tasks and assigning them to agents when they come in
 const worker = new Worker('axiom-tasks', async (job: Job) => {
   const task = job.data as TaskPacket;
 
