@@ -30,7 +30,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
         for (let i = 0; i < text.length; i++) {
             const charCode = text.charCodeAt(i);
             vector[i % 768] += charCode;
-            vector[(i * 7) % 768] += charCode * 0.5; // Spread the values
+            vector[(i * 7) % 768] += charCode * 0.5; 
         }
         const magnitude = Math.sqrt(vector.reduce((sum, val) => sum + (val * val), 0));
         if (magnitude === 0) return vector;
