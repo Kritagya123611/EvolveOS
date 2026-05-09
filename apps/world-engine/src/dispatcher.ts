@@ -95,7 +95,7 @@ export function assignTaskToAgents(task: TaskPacket,requiredDomain: AgentDomain)
 //a fxn that would evaluate the task with its system prompt and return a confidence score
 //from 0 to 100 on how well it thinks it can do the task. This will be used for bidding on
 //tasks in the future.
-export async function evaluateAgentBid(taskIntent:string, agent: AgentEntity): Promise<number> {
+export async function evaluateAgentBid(taskIntent:string, agent: AgentEntity): Promise<{score: number, reasoning: string}>{
   const bidPrompt = `
         You are an AI Agent operating inside the AXIOM OS.
         Your Name: ${agent.name}
@@ -114,4 +114,14 @@ export async function evaluateAgentBid(taskIntent:string, agent: AgentEntity): P
             "reasoning": "A 1-sentence explanation of why you bid this score."
         }
     `;
+    try{
+      const result=await model.generateContent(bidPrompt);
+      const responseText = result.response.text();
+      const parsed = JSON.parse(responseText);
+      console.log(`[BID] ${agent.name} (${agent.domain}) bid ${parsed.score}/100. Reasoning: ${parsed.reasoning}`);
+        return { score: parsed.score, reasoning: parsed.reasoning };
+    }catch(error:any){
+      console.error(`[BID ERROR] ${agent.name} failed to generate a bid. Defaulting to 0.`);
+      return { score: 0, reasoning: "API Failure during bid generation." };
+    }
 }
