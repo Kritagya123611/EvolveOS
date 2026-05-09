@@ -31,9 +31,10 @@ const JUNIOR_THRESHOLD = 40.0;
 
 //the fxn responsible for assigning the task to the agents based on their reputation and 
 //domain and also deciding the mentorship protocol if the conditions are met
-export function assignTaskToAgents(task: TaskPacket,requiredDomain: AgentDomain): JobRecord | null {
+export async function assignTaskToAgents(task: TaskPacket,requiredDomain: AgentDomain): Promise<{ leadAgentId: string, shadowAgentId?: string } | null> {
   console.log(`\n[DISPATCHER] Evaluating task ${task.id} for agent assignment...`);
 
+  //get all the agents which are from the same domain and are idle 
   const availableAgents: AgentEntity[] = AgentRegistry
     .filter(a => a.state === 'IDLE' && a.domain === requiredDomain);
 
@@ -42,54 +43,42 @@ export function assignTaskToAgents(task: TaskPacket,requiredDomain: AgentDomain)
     return null;
   }
 
-  availableAgents.sort((a, b) => b.reputation - a.reputation);
+  //have all available agents bid on the task
+  const bidPromises = availableAgents.map(async (agent) => {
+        const bid = await evaluateAgentBid(task.intent, agent);
+        return { agent, ...bid };
+    });
 
-  const highestRepAgent = availableAgents[0];
-  const lowestRepAgent = availableAgents[availableAgents.length - 1];
+  const auctionResults = await Promise.all(bidPromises);
 
-  if (!highestRepAgent || !lowestRepAgent) {
-    console.error('[DISPATCHER] Unexpected state: agents not found after filtering.');
-    return null;
-  }
+    // 3. Sort the results from highest score to lowest
+    auctionResults.sort((a, b) => b.score - a.score);
 
-  const shouldMentor =
-    highestRepAgent.reputation >= SENIOR_THRESHOLD &&
-    lowestRepAgent.reputation <= JUNIOR_THRESHOLD &&
-    highestRepAgent.id !== lowestRepAgent.id;
+    if (auctionResults.length === 0) {
+      console.log('[DISPATCHER] Auction completed with no bids.');
+      return null;
+    }
 
-  if (shouldMentor) {
-    console.log(`[DISPATCHER] Decision: MENTORSHIP Protocol Activated.`);
-    console.log(
-      `[DISPATCHER] Lead: ${highestRepAgent.name} | Shadow: ${lowestRepAgent.name}`
-    );
+    const winner = auctionResults[0]!;
+    
+    // Lock the winning Lead Agent
+    lockAgent(winner.agent.id);
+    console.log(`[AUCTION CLOSED] Winner: ${winner.agent.name} (${winner.score}/100).`);
 
-    lockAgent(highestRepAgent.id);
-    lockAgent(lowestRepAgent.id);
+    // 4. Mentorship Logic: The lowest bidder gets assigned to watch and learn
+    let shadowAgentId: string | undefined = undefined;
+    
+    if (auctionResults.length > 1) {
+        const loser = auctionResults[auctionResults.length - 1]!; // The very last item
+        lockAgent(loser.agent.id);
+        shadowAgentId = loser.agent.id;
+        console.log(`[DISPATCHER] Shadow assigned: ${loser.agent.name} (Score: ${loser.score}) needs to learn this domain.`);
+    }
 
     return {
-      id: crypto.randomUUID(),
-      taskId: task.id,
-      mode: 'MENTORSHIP',
-      leadAgentId: highestRepAgent.id,
-      shadowAgentId: lowestRepAgent.id,
-      status: 'DISPATCHED',
-      startedAt: Date.now()
+        leadAgentId: winner.agent.id,
+        ...(shadowAgentId ? { shadowAgentId } : {})
     };
-  }
-
-  console.log(`[DISPATCHER] Decision: SOLO Execution.`);
-  console.log(`[DISPATCHER] Assigned Agent: ${highestRepAgent.name}`);
-
-  lockAgent(highestRepAgent.id);
-
-  return {
-    id: crypto.randomUUID(),
-    taskId: task.id,
-    mode: 'SOLO',
-    leadAgentId: highestRepAgent.id,
-    status: 'DISPATCHED',
-    startedAt: Date.now()
-  };
 }
 
 //a fxn that would evaluate the task with its system prompt and return a confidence score

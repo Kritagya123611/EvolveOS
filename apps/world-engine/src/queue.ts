@@ -27,9 +27,9 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
   console.log(`[INTENT] "${task.intent}"`);
 
   try {
-    const assignmentResult = assignTaskToAgents(task,
-      'INFRASTRUCTURE' as Parameters<typeof assignTaskToAgents>[1]
-    );
+    const assignmentResult = await assignTaskToAgents(task,
+  'INFRASTRUCTURE' as Parameters<typeof assignTaskToAgents>[1]
+);
     
     if (!assignmentResult) throw new Error('Worker Starvation: No agents currently available.');
 
