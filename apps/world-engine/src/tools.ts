@@ -47,28 +47,44 @@ export const AXIOM_SYSCALLS: FunctionDeclaration[] = [
 //function to run the calls actually on the machine
 export async function executeSyscall(name:string,args:any):Promise<string> {
     console.log("[SYSCALL] Executing:", name, args);
-    try{
-        if(name==="runTerminalCommand"){
-            const output = execSync(args.command, { encoding: 'utf-8' });
-            console.log("[SYSCALL] Command successfully executed");
-            return output||"Command executed successfully, but there was no output.";
-        }else if(name==="writeLocalFile"){
-            // Write the file to the disk
-            const targetPath = path.resolve(process.cwd(), args.filepath);
+    try {
+        if (name === "runTerminalCommand") {
+            // --- SECURITY: Route into Docker Sandbox ---
+            // We escape double quotes so the shell command doesn't break
+            const safeCommand = args.command.replace(/"/g, '\\"');
+            const dockerWrapper = `docker exec axiom-workspace sh -c "${safeCommand}"`;
+            
+            const output = execSync(dockerWrapper, { encoding: 'utf-8' });
+            console.log("[SYSCALL] Command successfully executed inside Docker sandbox.");
+            return output || "Command executed successfully, but there was no output.";
+
+        } else if (name === "writeLocalFile") {
+            // --- SECURITY: Force files into the Sandbox folder ---
+            // If the AI specifies "/workspace/file.js" or "./file.js", we strip it clean
+            const cleanPath = args.filepath.replace('/workspace/', '').replace(/^(\.\/|\/)/, '');
+            
+            // Route the file specifically into your local 'sandbox' directory
+            const targetPath = path.resolve(process.cwd(), 'sandbox', cleanPath);
             
             // Ensure the directory exists before writing
             const dir = path.dirname(targetPath);
             if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
             
             fs.writeFileSync(targetPath, args.content);
-            console.log(`[SYSCALL SUCCESS] File written to ${targetPath}`);
-            return `Success: File written to ${targetPath}`;
-        }else{
+            console.log(`[SYSCALL SUCCESS] File safely written to sandbox: ${targetPath}`);
+            
+            // We tell the AI it wrote to /workspace because that's where it lives
+            return `Success: File written to /workspace/${cleanPath}`;
+
+        } else {
             console.error("[SYSCALL ERROR] Unknown syscall name:", name);
             return `Error: Unknown syscall name "${name}"`;
         }
-    }catch(error:any){
+    } catch (error: any) {
         console.error("[SYSCALL ERROR] An error occurred while executing syscall:", error.message);
-        return `Error executing syscall: ${error.message}`;
+        // We capture Docker's specific error output so the AI can debug its own mistakes
+        const stdoutStr = error.stdout ? error.stdout.toString() : '';
+        const stderrStr = error.stderr ? error.stderr.toString() : '';
+        return `Error executing syscall: ${error.message}\nOutput: ${stdoutStr}\nStderr: ${stderrStr}`;
     }
 }
