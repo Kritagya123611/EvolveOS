@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Adding a slick hacker-terminal background color right out of the gate */
+body {
+  background-color: #09090b;
+  color: #f4f4f5;
+}
