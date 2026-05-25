@@ -23,4 +23,4 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     } as any
 });
 
-console.log('🔗 [DATABASE] Connected to AXIOM World Archive.');
+console.log('[DATABASE] Connected to AXIOM World Archive.');

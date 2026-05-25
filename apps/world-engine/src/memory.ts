@@ -17,7 +17,6 @@ export interface Memory {
 
 export const MemoryStore:Memory[]=[];
 
-//just converting text to an embedding vector using the embedding model
 export async function generateEmbedding(text: string): Promise<number[]> {
     try {
         const embeddingModel = genAI.getGenerativeModel({ model: 'text-embedding-004' });
@@ -39,7 +38,6 @@ export async function generateEmbedding(text: string): Promise<number[]> {
     }
 }
 
-//save new memory to the store
 export async function saveMemory(agentId: string, text: string) {
     console.log(`[MEMORY] Encoding new memory for Agent ${agentId}...`);
     const vector = await generateEmbedding(text);
@@ -58,7 +56,6 @@ export async function saveMemory(agentId: string, text: string) {
     console.log(`[MEMORY] Knowledge securely stored. Total Memories: ${MemoryStore.length}`);
 }
 
-//cosine similarity function to compare two vectors(just the dot product)
 function cosineSimilarity(vecA: number[], vecB: number[]): number {
     if (!vecA || !vecB) return 0;
     let dotProduct = 0;
@@ -76,7 +73,6 @@ function cosineSimilarity(vecA: number[], vecB: number[]): number {
     return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
-//function for searching a memory from the memory store
 export async function searchMemories(query: string,topK: number = 5):Promise<Memory[]>{
   if (MemoryStore.length === 0) return [];
 

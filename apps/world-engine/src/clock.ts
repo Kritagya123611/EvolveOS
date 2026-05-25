@@ -27,7 +27,6 @@ async function tick() {
             }
         }
     }
-    //the logic for making new agents by combining the system prompts of the top 2 agents and adding a mutation to it
     const MaxPopulationForEvolution = 10;
     
     const topAgents = AgentRegistry.filter(a => a.reputation >= 90 && a.state === 'IDLE');
@@ -74,8 +73,7 @@ async function tick() {
             systemPrompt: childPrompt,
             state: 'IDLE'
         };
-
-        // insert the new child agent into RAM and DB
+        
         await spawnAgent(childAgent);
 
         console.log(`[BIRTH] A new agent was spawned! New Population: ${AgentRegistry.length}`);

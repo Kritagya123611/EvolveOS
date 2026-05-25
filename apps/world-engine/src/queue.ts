@@ -14,12 +14,10 @@ const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
 console.log('evolveos World Engine Booting...');
 
-//just retrieve the existing agents from the db and prepare the world for incoming tasks
 await bootWorld();
 
 console.log('Listening for tasks on the Job Board.');
 
-//checking the redis queue for new tasks and assigning them to agents when they come in
 const worker = new Worker('axiom-tasks', async (job: Job) => {
   const task = job.data as TaskPacket;
 
@@ -40,13 +38,11 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
 
     let leadOutput = '';
     try {
-        //fetching past memories here
         const pastLessons = await searchMemories(task.intent);
         const memoryContext = pastLessons.length > 0 
             ? `\nRELEVANT PAST LESSONS FROM MEMORY BANK:\n- ${pastLessons.join('\n- ')}\n` 
             : `\n(No relevant past memories found for this task.)\n`;
 
-        //giving the agent its tools and memory
         const chat = model.startChat({
             tools: [{ functionDeclarations: AXIOM_SYSCALLS }],
             systemInstruction: `${leadAgent?.systemPrompt}\n${memoryContext}`
@@ -54,10 +50,8 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
 
         console.log(`[LLM CORE] ${leadAgent?.name} is analyzing the task and deciding on tools...`);
         
-        //give the agent the task
         let result = await chat.sendMessage(`HUMAN TASK: ${task.intent}\n\nExecute this task. Use your tools if you need to interact with the system.`);
 
-        //if result.response.functionCalls exists, it means the llm decided it needs a tool.
         let functionCalls = result.response.functionCalls();
         while (functionCalls && functionCalls.length > 0) {
 

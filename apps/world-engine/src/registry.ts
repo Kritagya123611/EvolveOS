@@ -32,11 +32,8 @@ export function getAgentById(id: string): AgentEntity | undefined {
     return AgentRegistry.find(a => a.id === id);
 }
 
-//means ki new (child) agent ko RAM me daalna and database me bhi daalna
 export async function spawnAgent(agent: AgentEntity) {
-    AgentRegistry.push(agent); // Add to RAM instantly so the clock sees it
-    
-    // Save to permanent storage
+    AgentRegistry.push(agent); 
     const { error } = await supabase.from('agents').insert({
         id: agent.id,
         name: agent.name,
@@ -49,7 +46,6 @@ export async function spawnAgent(agent: AgentEntity) {
     if (error) console.error(`Failed to save agent ${agent.name}:`, error.message);
 }
 
-// Lock agent in RAM and DB
 export async function lockAgent(id: string) {
     const agent = AgentRegistry.find(a => a.id === id);
     if (agent) {
@@ -58,7 +54,6 @@ export async function lockAgent(id: string) {
     }
 }
 
-// Unlock agent in RAM and DB
 export async function unlockAgent(id: string) {
     const agent = AgentRegistry.find(a => a.id === id);
     if (agent) {
