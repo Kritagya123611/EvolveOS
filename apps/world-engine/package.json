@@ -3,13 +3,17 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "dev:clock": "tsx watch src/clock.ts",
+    "dev:worker": "tsx watch src/queue.ts",
+    "dev": "tsx src/clock.ts",
+    "start": "tsx src/clock.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "type": "module",
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Core backend: agents, memory, tools, queue, clock",
   "devDependencies": {
     "@types/node": "^25.6.0",
     "@types/ws": "^8.18.1",

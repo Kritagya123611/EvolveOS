@@ -24,12 +24,12 @@ export default function Landing() {
             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
             <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500"></span>
           </span>
-          AXIOM OS v1.0 IS LIVE
+          EVOLVEOS v1.0 IS LIVE
         </div>
 
         {/* Hero Typography */}
         <h1 className="text-5xl md:text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-b from-white to-zinc-500 tracking-tight mb-6">
-          AXIOM <span className="text-red-500">OS</span>
+          EVOLVE <span className="text-red-500">OS</span>
         </h1>
         <p className="text-lg text-zinc-400 max-w-2xl mb-12 tracking-wide">
           The sovereign AI operating system. 

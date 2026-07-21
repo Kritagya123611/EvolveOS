@@ -5,6 +5,15 @@
     "apps/*",
     "packages/*"
   ],
+  "scripts": {
+    "dev:clock": "npm run dev:clock -w apps/world-engine",
+    "dev:worker": "npm run dev:worker -w apps/world-engine",
+    "dev:border": "npm run dev -w apps/border-api",
+    "dev:jarvis": "npm run dev -w apps/jarvis-web",
+    "dev:command": "npm run dev -w apps/command-center",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces --if-present"
+  },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.3",
     "ws": "^8.20.0"

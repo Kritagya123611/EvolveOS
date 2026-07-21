@@ -126,15 +126,15 @@ The LLM deciding when to call a tool — and with what parameters — is a reaso
 
 ## Core Systems
 
-### Hybrid Cache Architecture — `registry.ts`
+### Hybrid Cache Architecture — `world-engine/src/registry.ts`
 Agents live in two places simultaneously: a RAM mirror for microsecond reads, and Supabase for permanent truth. `bootWorld()` reconciles them on every startup and resets all states to `IDLE` — so a crashed process never leaves agents in a locked state that poisons the next run.
 
-### Persistent Hippocampus — `memory.ts`
+### Persistent Hippocampus — `world-engine/src/memory.ts`
 Every agent has a long-term memory backed by Supabase `pgvector`. Memories are embedded using Google's `embedding-001` model into 768-dimensional vectors and retrieved via Cosine Similarity through a custom Postgres RPC (`match_memories`).
 
 **Circuit Breaker:** If Google's embedding API returns a 404 or overload error, the system falls back to a local deterministic hashing algorithm that produces a valid 768-D array from raw text. The database transaction never fails. The agent never stalls.
 
-### Host OS Syscalls — `tools.ts`
+### Host OS Syscalls — `world-engine/src/tools.ts`
 Agents can execute real commands on the host Ubuntu machine. This is wired through Gemini Function Calling — the LLM declares intent, EvolveOS executes physically.
 
 Current syscalls:
@@ -147,7 +147,7 @@ AXIOM_SYSCALLS = [
 
 The Judgement Loop feeds terminal output back into the LLM context, creating a closed feedback cycle between thought and physical execution.
 
-### The Judgement Loop — `queue.ts`
+### The Judgement Loop — `world-engine/src/queue.ts`
 The core execution primitive. Not a chain. Not a DAG. A `while` loop that terminates when the LLM decides the task is physically complete.
 
 ```
@@ -168,7 +168,7 @@ A junior (shadow) agent observes the lead agent's complete reasoning trace after
 
 This is how institutional knowledge compounds without human curation.
 
-### Genesis Protocol — `clock.ts`
+### Genesis Protocol — `world-engine/src/clock.ts`
 The heartbeat process monitors agent performance. High-performing agents trigger a breeding event — `spawnAgent()` creates a mutated Gen-2 agent, pushes it to RAM, and INSERTs it into Supabase permanently. The civilization grows its own population.
 
 ---
@@ -198,17 +198,27 @@ all `runTerminalCommand` requests into ephemeral, restricted Docker containers o
 
 ```
 evolveos/
-├── src/
-│   ├── db.ts          # Supabase connection (ws transport)
-│   ├── registry.ts    # RAM cache + bootWorld() + spawnAgent()
-│   ├── memory.ts      # Embedding, circuit breaker, saveMemory(), searchMemories()
-│   ├── tools.ts       # AXIOM_SYSCALLS schema + executeSyscall()
-│   ├── clock.ts       # Process 1: heartbeat, intrinsic research, Genesis Protocol
-│   └── queue.ts       # Process 2: BullMQ worker, Judgement Loop, Mentorship
-├── docker-compose.yml # Redis
-├── .env
-├── package.json
-└── tsconfig.json
+├── apps/
+│   ├── world-engine/              # Core backend: agents, memory, tools, queue, clock
+│   │   └── src/
+│   │       ├── db.ts              # Supabase connection (ws transport)
+│   │       ├── registry.ts        # RAM cache + bootWorld() + spawnAgent()
+│   │       ├── memory.ts          # Embedding, circuit breaker, saveMemory(), searchMemories()
+│   │       ├── tools.ts           # AXIOM_SYSCALLS schema + executeSyscall()
+│   │       ├── clock.ts           # Process 1: heartbeat, intrinsic research, Genesis Protocol
+│   │       ├── queue.ts           # Process 2: BullMQ worker, Judgement Loop, Mentorship
+│   │       └── dispatcher.ts      # Auction-based agent assignment
+│   ├── border-api/                # Express API for external task submission
+│   │   └── src/server.ts
+│   ├── jarvis-web/                # React frontend — Jarvis interface (in progress)
+│   └── command-center/            # React frontend — Landing page
+├── packages/
+│   └── axiom-types/               # Shared TypeScript types across the monorepo
+├── sandbox/                       # Mounted into Docker workspace container
+├── docker-compose.yml             # Redis, Postgres, agent workspace
+├── .env.example                   # Environment template
+├── package.json                   # Monorepo root (npm workspaces)
+└── README.md
 ```
 
 ---
@@ -218,7 +228,7 @@ evolveos/
 **Prerequisites:** Node.js v20, Docker, a Supabase project, a Google AI API key.
 
 ```bash
-git clone https://github.com/yourusername/evolveos
+git clone https://github.com/kritagya/evolveos
 cd evolveos
 npm install
 ```
@@ -236,13 +246,16 @@ cp .env.example .env
 
 **Run the Supabase migrations** (agents table, memories table with pgvector, match_memories RPC).
 
-**Start both processes:**
+**Start the backend processes:**
 ```bash
-# Terminal 1 — Heartbeat
-npx tsx src/clock.ts
+# Terminal 1 — Heartbeat (clock + evolution + research)
+npm run dev:clock
 
-# Terminal 2 — Worker
-npx tsx src/queue.ts
+# Terminal 2 — Worker (Judgement Loop + Mentorship)
+npm run dev:worker
+
+# Terminal 3 — Border API (external task submission)
+npm run dev:border
 ```
 
 ---
