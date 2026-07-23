@@ -7,6 +7,9 @@ import cors from 'cors';
 import { Queue } from 'bullmq';
 import { v4 as uuidv4 } from 'uuid';
 import type { AgentDomain, TaskPacket } from '@axiom/types';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const app = express();
 app.use(cors());
