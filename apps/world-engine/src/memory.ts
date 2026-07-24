@@ -16,15 +16,9 @@ export interface Memory {
 }
 
 // In-memory store for all agent memories
-// NOTE: In production this would be backed by Supabase pgvector.
-// Right now it lives in RAM so memories reset on restart.
 export const MemoryStore: Memory[] = [];
 
-/**
- * Turn any piece of text into a 768-dimensional vector.
- * If Google's embedding API is down, we fall back to a deterministic
- * local hash that still produces a valid 768-D array.
- */
+//trying with gemini 
 export async function generateEmbedding(text: string): Promise<number[]> {
   try {
     // Use the latest embedding model from Google
@@ -34,8 +28,7 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   } catch (error: unknown) {
     console.log(`[CIRCUIT BREAKER] Google API 404. Generating local 768-D vector...`);
 
-    // Fallback: create a deterministic vector from the text characters
-    // This keeps the DB consistent even when the API is down
+    // calculate the dot product if the api not responding
     const vector = new Array(768).fill(0);
     for (let i = 0; i < text.length; i++) {
       const charCode = text.charCodeAt(i);
@@ -51,10 +44,10 @@ export async function generateEmbedding(text: string): Promise<number[]> {
   }
 }
 
-/**
- * Save a new memory for an agent.
- * Embeds the text and stores it in the in-memory vector store.
- */
+
+//Save a new memory for an agent.
+ //Embeds the text and stores it in the in-memory vector store.
+ 
 export async function saveMemory(agentId: string, text: string) {
   console.log(`[MEMORY] Encoding new memory for Agent ${agentId}...`);
   const vector = await generateEmbedding(text);

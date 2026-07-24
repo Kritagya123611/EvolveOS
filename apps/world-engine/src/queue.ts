@@ -33,7 +33,6 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
 
   try {
     // Let the dispatcher pick a lead agent (and optionally a shadow for mentorship)
-    // We use 'CODER' as the default domain — agents with this domain handle execution tasks
     const assignmentResult = await assignTaskToAgents(task, 'CODER');
 
     if (!assignmentResult) {
