@@ -4,7 +4,7 @@ import { assignTaskToAgents } from './dispatcher.js';
 import { getAgentById, unlockAgent, bootWorld } from './registry.js';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { saveMemory, searchMemories } from './memory.js';
-import { AXIOM_SYSCALLS, executeSyscall } from './tools.js';
+import { AXIOM_SYSCALLS, executeSyscall, createAgentContainer, destroyAgentContainer } from './tools.js';
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -18,76 +18,71 @@ const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 const REDIS_HOST = process.env.REDIS_HOST || '127.0.0.1';
 const REDIS_PORT = parseInt(process.env.REDIS_PORT || '6379', 10);
 
-// ---------------------------------------------------------------------------
-// Judgement Loop — the core agentic execution pattern
-//
-// Send the task to the LLM, then:
-//   IF the LLM wants to call a tool → spin up container → execute → repeat
-//   ELSE → the LLM answered directly, return the text
-// ---------------------------------------------------------------------------
+//decides wether the agent requires toolcalls or normal text ans is enough
 async function runJudgementLoop(
   intent: string,
   systemPrompt: string,
+  agentId: string,
 ): Promise<string> {
-  const pastLessons = await searchMemories(intent);
-  const memoryContext =
-    pastLessons.length > 0
-      ? `\nRELEVANT PAST LESSONS FROM MEMORY BANK:\n- ${pastLessons.join('\n- ')}\n`
-      : `\n(No relevant past memories found for this task.)\n`;
 
-  const chat = model.startChat({
-    tools: [{ functionDeclarations: AXIOM_SYSCALLS }],
-    systemInstruction: `${systemPrompt}\n${memoryContext}`,
-  });
+  let containerCreated = false;
 
-  let result = await chat.sendMessage(
-    `HUMAN TASK: ${intent}\n\nExecute this task. Use your tools if you need to interact with the system.`,
-  );
+  try {
+    const pastLessons = await searchMemories(intent);
+    const memoryContext =
+      pastLessons.length > 0
+        ? `\nRELEVANT PAST LESSONS FROM MEMORY BANK:\n- ${pastLessons.join('\n- ')}\n`
+        : `\n(No relevant past memories found for this task.)\n`;
 
-  let functionCalls = result.response.functionCalls();
+    const chat = model.startChat({
+      tools: [{ functionDeclarations: AXIOM_SYSCALLS }],
+      systemInstruction: `${systemPrompt}\n${memoryContext}`,
+    });
 
-  // ======================================================================
-  // IF: No tool calls needed — LLM answered directly
-  // ======================================================================
-  if (!functionCalls || functionCalls.length === 0) {
-    console.log('[JUDGEMENT] No tool calls needed. Returning LLM response directly.');
-    return result.response.text();
-  }
-  else{
-    console.log(`[JUDGEMENT] Tool call(s) detected (${functionCalls.length}). Spinning up container...`);
+    let result = await chat.sendMessage(
+      `HUMAN TASK: ${intent}\n\nExecute this task. Use your tools if you need to interact with the system.`,
+    );
 
-  // YOUR CONTAINERISATION LOGIC GOES HERE
+    let functionCalls = result.response.functionCalls();
 
-  while (functionCalls && functionCalls.length > 0) {
-    const call = functionCalls[0]!;
-    console.log(`[JUDGEMENT] → Executing: ${call.name}`);
+    if (!functionCalls || functionCalls.length === 0) {
+      console.log('[JUDGEMENT] No tool calls needed. Returning LLM response directly.');
+      return result.response.text();
+    }
 
-    const toolOutput = await executeSyscall(call.name, call.args);
+    await createAgentContainer(agentId);
+    containerCreated = true;
+    console.log(`[JUDGEMENT] Tool call(s) detected (${functionCalls.length}).`);
 
-    result = await chat.sendMessage([
-      {
-        functionResponse: {
-          name: call.name,
-          response: { result: toolOutput },
+    while (functionCalls && functionCalls.length > 0) {
+      const call = functionCalls[0]!;
+      console.log(`[JUDGEMENT] → Executing: ${call.name}`);
+
+      const toolOutput = await executeSyscall(call.name, call.args, agentId);
+
+      result = await chat.sendMessage([
+        {
+          functionResponse: {
+            name: call.name,
+            response: { result: toolOutput },
+          },
         },
-      },
-    ]);
+      ]);
 
-    functionCalls = result.response.functionCalls();
+      functionCalls = result.response.functionCalls();
+    }
+
+    console.log('[JUDGEMENT] All tool calls complete. Returning final LLM response.');
+    return result.response.text();
+  } finally {
+    if (containerCreated) {
+      await destroyAgentContainer(agentId);
+    }
   }
-
-  // YOUR CONTAINER CLEANUP LOGIC GOES HERE
-  // e.g. docker stop → docker rm → etc.
-
-  console.log('[JUDGEMENT] All tool calls complete. Returning final LLM response.');
-  return result.response.text();
-  }
-
 }
 
-// ---------------------------------------------------------------------------
+
 // Shadow Mentorship — junior agent observes and learns from senior's output
-// ---------------------------------------------------------------------------
 async function runShadowMentorship(
   shadowPrompt: string,
   shadowId: string,
@@ -98,9 +93,8 @@ async function runShadowMentorship(
   return notes;
 }
 
-// ---------------------------------------------------------------------------
+
 // Main Worker — picks up tasks from BullMQ and runs the Judgement Loop
-// ---------------------------------------------------------------------------
 console.log('EvolveOS World Engine Booting...');
 await bootWorld();
 console.log('Listening for tasks on the Job Board.');
@@ -132,7 +126,7 @@ const worker = new Worker('axiom-tasks', async (job: Job) => {
     // --- Run the Judgement Loop (lead agent) ---
     let leadOutput = '';
     try {
-      leadOutput = await runJudgementLoop(task.intent, leadAgent.systemPrompt);
+      leadOutput = await runJudgementLoop(task.intent, leadAgent.systemPrompt, leadAgent.id);
       console.log(`[LLM CORE] ${leadAgent.name} successfully completed the execution.`);
     } catch (apiError: unknown) {
       const msg = apiError instanceof Error ? apiError.message : String(apiError);

@@ -21,14 +21,21 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
 
-  # --- NEW: The Isolated Agent Workspace ---
+  # --- Isolated Agent Workspace (legacy shared sandbox) ---
   workspace:
     build:
       context: .
       dockerfile: Workspace.Dockerfile
     container_name: axiom-workspace
     volumes:
-      - ./sandbox:/workspace # Mounts the container to your local folder
+      - ./sandbox:/workspace
+
+  # --- Per-Agent Isolated Container ---
+  agent:
+    build:
+      context: .
+      dockerfile: Agent.Dockerfile
+    image: axiom-agent
 
 volumes:
   redis_data:

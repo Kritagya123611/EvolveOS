@@ -1,8 +1,63 @@
 import type { FunctionDeclaration } from '@google/generative-ai';
 import { SchemaType } from '@google/generative-ai';
-import { execSync } from 'child_process';
+import { execSync, exec as execCb } from 'child_process';
+import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
+
+const execAsync = promisify(execCb);
+
+// ---------------------------------------------------------------------------
+// Container Lifecycle — per-agent isolated execution environments
+// ---------------------------------------------------------------------------
+
+/**
+ * Spin up a fresh agent container from the axiom-agent image.
+ * Returns the container ID.
+ */
+export async function createAgentContainer(agentId: string): Promise<string> {
+  const containerName = `agent-${agentId}`;
+  const sandboxDir = path.resolve(process.cwd(), 'sandbox', agentId);
+
+  // Ensure sandbox directory exists on host
+  if (!fs.existsSync(sandboxDir)) {
+    fs.mkdirSync(sandboxDir, { recursive: true });
+  }
+
+  const cmd = [
+    'docker run -d',
+    `--name ${containerName}`,
+    `-v ${sandboxDir}:/workspace`,
+    'axiom-agent',
+    'tail -f /dev/null',
+  ].join(' ');
+
+  const { stdout } = await execAsync(cmd);
+  const containerId = stdout.trim();
+  console.log(`[CONTAINER] Spawned ${containerName} (${containerId.substring(0, 12)})`);
+  return containerId;
+}
+
+/**
+ * Stop and remove an agent container after the judgement loop completes.
+ */
+export async function destroyAgentContainer(agentId: string): Promise<void> {
+  const containerName = `agent-${agentId}`;
+  try {
+    await execAsync(`docker stop ${containerName} && docker rm ${containerName}`);
+    console.log(`[CONTAINER] Destroyed ${containerName}`);
+  } catch (error: unknown) {
+    console.error(`[CONTAINER] Failed to destroy ${containerName}:`, (error as Error).message);
+  }
+}
+
+/**
+ * Get the sandbox path for a specific agent on the host filesystem.
+ */
+function getAgentSandboxPath(agentId: string, relativePath: string): string {
+  const cleanPath = relativePath.replace('/workspace/', '').replace(/^(\.\/|\/)/, '');
+  return path.resolve(process.cwd(), 'sandbox', agentId, cleanPath);
+}
 
 /**
  * These are the tools the Gemini LLM can call during the Judgement Loop.
@@ -44,41 +99,41 @@ export const AXIOM_SYSCALLS: FunctionDeclaration[] = [
 ];
 
 /**
- * Execute a tool call from the LLM.
+ * Execute a tool call from the LLM inside an agent's isolated container.
  * Routes to the correct handler based on the syscall name.
  */
-export async function executeSyscall(name: string, args: Record<string, any>): Promise<string> {
-  console.log('[SYSCALL] Executing:', name, args);
+export async function executeSyscall(
+  name: string,
+  args: Record<string, any>,
+  agentId: string,
+): Promise<string> {
+  console.log(`[SYSCALL] Executing ${name} in container agent-${agentId}:`, args);
 
   try {
     if (name === 'runTerminalCommand') {
-      // Run the command inside a Docker container for sandboxing
       const safeCommand = (args.command as string).replace(/"/g, '\\"');
-      const dockerWrapper = `docker exec axiom-workspace sh -c "${safeCommand}"`;
+      const containerName = `agent-${agentId}`;
+      const dockerCmd = `docker exec ${containerName} sh -c "${safeCommand}"`;
 
-      const output = execSync(dockerWrapper, { encoding: 'utf-8' });
-      console.log('[SYSCALL] Command successfully executed inside Docker sandbox.');
+      const output = execSync(dockerCmd, { encoding: 'utf-8' });
+      console.log('[SYSCALL] Command executed successfully.');
       return output || 'Command executed successfully, but there was no output.';
     } else if (name === 'writeLocalFile') {
-      // Write files to the local sandbox directory (mounted into Docker)
-      const cleanPath = (args.filepath as string).replace('/workspace/', '').replace(/^(\.\/|\/)/, '');
-      const targetPath = path.resolve(process.cwd(), 'sandbox', cleanPath);
+      const targetPath = getAgentSandboxPath(agentId, args.filepath as string);
 
-      // Create the directory if it doesn't exist
       const dir = path.dirname(targetPath);
       if (!fs.existsSync(dir)) {
         fs.mkdirSync(dir, { recursive: true });
       }
 
       fs.writeFileSync(targetPath, args.content as string);
-      console.log(`[SYSCALL SUCCESS] File safely written to sandbox: ${targetPath}`);
-      return `Success: File written to /workspace/${cleanPath}`;
+      console.log(`[SYSCALL] File written to sandbox: ${targetPath}`);
+      return `Success: File written to /workspace/${args.filepath}`;
     } else {
       console.error('[SYSCALL ERROR] Unknown syscall name:', name);
       return `Error: Unknown syscall name "${name}"`;
     }
   } catch (error: unknown) {
-    // Extract stdout/stderr from execSync errors for better debugging
     const execError = error as { message?: string; stdout?: Buffer; stderr?: Buffer };
     const message = execError.message || String(error);
     const stdoutStr = execError.stdout ? execError.stdout.toString() : '';
