@@ -29,11 +29,8 @@ app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok', message: 'EvolveOS Border API is online' });
 });
 
-/**
- * POST /api/customs/in — Submit a new task to EvolveOS.
- * The user sends their intent (a natural language description of what they want),
- * and we create a TaskPacket and put it on the BullMQ queue.
- */
+
+//POST /api/customs/in — Submit a new task to EvolveOS.
 app.post('/api/customs/in', async (req, res) => {
   const { intent } = req.body;
 
@@ -67,6 +64,44 @@ app.post('/api/customs/in', async (req, res) => {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[CUSTOMS ERROR] Failed to enqueue task: ${message}`);
     res.status(500).json({ error: 'Failed to process your request. Please try again later.' });
+  }
+});
+
+
+//GET /api/customs/out/:id — Retrieve the result of a submitted task.
+app.get('/api/customs/out/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const job = await taskQueue.getJob(id);
+
+    if (!job) {
+      res.status(404).json({ error: 'Task not found' });
+      return;
+    }
+
+    const state = await job.getState();
+
+    if (state === 'completed') {
+      res.json({
+        status: 'COMPLETED',
+        result: job.returnvalue,
+      });
+    } else if (state === 'failed') {
+      res.json({
+        status: 'FAILED',
+        error: job.failedReason || 'Task failed',
+      });
+    } else {
+      res.json({
+        status: state.toUpperCase(),
+        message: 'Task is still processing',
+      });
+    }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[CUSTOMS ERROR] Failed to retrieve task: ${message}`);
+    res.status(500).json({ error: 'Failed to retrieve task status' });
   }
 });
 
