@@ -24,6 +24,8 @@ async function runJudgementLoop(
 ): Promise<string> {
 
   let containerCreated = false;
+  let maxIterations = 10;
+  let currentIterations = 0;
 
   try {
     const pastLessons = await searchMemories(intent);
@@ -53,6 +55,16 @@ async function runJudgementLoop(
     console.log(`[JUDGEMENT] Tool call(s) detected (${functionCalls.length}).`);
 
     while (functionCalls && functionCalls.length > 0) {
+      if(currentIterations >= maxIterations){
+        console.warn(`[JUDGEMENT] Infinite loop guard triggered at ${maxIterations} iterations.`);
+        
+        //force the LLM to finalize its response without using more tools
+        result = await chat.sendMessage(
+          "SYSTEM WARNING: You have reached the maximum number of allowed tool calls. Please synthesize a final answer based on the data you have collected so far. Do not execute any further tools."
+        );
+        break;
+      }
+      currentIterations++;
       const call = functionCalls[0]!;
       console.log(`[JUDGEMENT] → Executing: ${call.name}`);
 
